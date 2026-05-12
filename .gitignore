@@ -1,0 +1,15 @@
+# Backend
+backend/bin/
+*.db
+*.db-journal
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+frontend/tsconfig.tsbuildinfo
