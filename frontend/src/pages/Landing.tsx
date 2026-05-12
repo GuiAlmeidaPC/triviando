@@ -10,18 +10,17 @@ export default function Landing() {
         <p className="text-slate-400">Real-time trivia for groups.</p>
         <div className="flex flex-col gap-3">
           <Link
-            to="/quizzes"
+            to="/join"
             className="bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-semibold py-3 px-6 rounded-lg transition"
           >
-            My quizzes
+            Join with PIN
           </Link>
-          <button
-            disabled
-            className="bg-slate-800 text-slate-500 font-semibold py-3 px-6 rounded-lg cursor-not-allowed"
-            title="Coming in milestone 3"
+          <Link
+            to="/quizzes"
+            className="bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold py-3 px-6 rounded-lg transition"
           >
-            Join with PIN (coming soon)
-          </button>
+            Host: my quizzes
+          </Link>
         </div>
       </div>
     </div>

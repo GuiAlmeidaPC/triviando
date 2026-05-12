@@ -5,12 +5,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/GuiAlmeidaPC/triviando/backend/internal/live"
 	"github.com/GuiAlmeidaPC/triviando/backend/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func New(st *store.Store) http.Handler {
+func New(st *store.Store, hub *live.Hub) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -32,7 +33,15 @@ func New(st *store.Store) http.Handler {
 			r.Delete("/{id}", qh.delete)
 		})
 	})
-	return r
+
+	// WebSocket handler mounted outside chi's middleware stack — the Logger
+	// and Timeout middleware wrap the response writer in ways that break
+	// connection hijacking.
+	wsh := &live.Handler{Hub: hub}
+	mux := http.NewServeMux()
+	mux.Handle("/ws", wsh)
+	mux.Handle("/", r)
+	return mux
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {

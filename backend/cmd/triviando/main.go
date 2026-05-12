@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/GuiAlmeidaPC/triviando/backend/internal/httpsrv"
+	"github.com/GuiAlmeidaPC/triviando/backend/internal/live"
 	"github.com/GuiAlmeidaPC/triviando/backend/internal/store"
 )
 
@@ -28,9 +29,11 @@ func main() {
 	}
 	defer st.Close()
 
+	hub := live.NewHub(st)
+
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           httpsrv.New(st),
+		Handler:           httpsrv.New(st, hub),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

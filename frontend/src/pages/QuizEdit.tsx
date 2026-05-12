@@ -125,9 +125,20 @@ export default function QuizEdit() {
             <button
               onClick={save}
               disabled={saving}
-              className="bg-fuchsia-500 hover:bg-fuchsia-400 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-lg transition"
+              className="bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-lg transition"
             >
               {saving ? "Saving…" : "Save"}
+            </button>
+            <button
+              onClick={async () => {
+                await save();
+                nav(`/host?quizId=${id}`);
+              }}
+              disabled={saving || questions.length === 0}
+              className="bg-fuchsia-500 hover:bg-fuchsia-400 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-lg transition"
+              title={questions.length === 0 ? "Add a question first" : "Start a live game"}
+            >
+              Host live
             </button>
           </div>
         </header>
