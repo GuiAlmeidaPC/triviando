@@ -2,6 +2,7 @@ package live
 
 import (
 	"sync"
+	"time"
 
 	"github.com/GuiAlmeidaPC/triviando/backend/internal/store"
 )
@@ -9,10 +10,10 @@ import (
 type GameState string
 
 const (
-	StateLobby          GameState = "lobby"
-	StateQuestionActive GameState = "question_active"
-	StateQuestionReveal GameState = "question_reveal"
-	StateFinished       GameState = "finished"
+	StateLobby           GameState = "lobby"
+	StateQuestionActive  GameState = "question_active"
+	StateQuestionReveal  GameState = "question_reveal"
+	StateFinished        GameState = "finished"
 )
 
 // Game holds the live state for a single game session.
@@ -26,10 +27,24 @@ type Game struct {
 	HostToken string
 	State     GameState
 
-	host    *conn              // nil if host disconnected
+	host    *conn            // nil if host disconnected
 	players map[string]*player // by playerID
 	// Reverse lookup so reconnecting players keep their slot/score.
 	playerByToken map[string]*player
+
+	// Play-loop state. Only meaningful when State != lobby/finished.
+	currentIdx       int
+	questionStartMS  int64
+	questionEndMS    int64
+	currentAnswers   map[string]playerAnswer // by playerID, reset each question
+	currentTimer     *time.Timer
+}
+
+type playerAnswer struct {
+	ChoiceID    string
+	AnsweredAt  int64 // ms
+	Awarded     int
+	WasCorrect  bool
 }
 
 type player struct {

@@ -63,14 +63,82 @@ type ErrorMsg struct {
 	Message string `json:"message"`
 }
 
+// Host control commands (no payload).
+type HostStartMsg struct{}
+type HostRevealMsg struct{}
+type HostNextMsg struct{}
+
+type PlayerAnswerMsg struct {
+	ChoiceID string `json:"choiceId"`
+}
+
+// QuestionStart is broadcast at the start of each question.
+type QuestionStartMsg struct {
+	Index            int                 `json:"index"`
+	Total            int                 `json:"total"`
+	Prompt           string              `json:"prompt"`
+	Choices          []QuestionChoiceMsg `json:"choices"`
+	TimeLimitSeconds int                 `json:"timeLimitSeconds"`
+	StartedAt        int64               `json:"startedAt"` // ms since epoch (server clock)
+	EndsAt           int64               `json:"endsAt"`    // ms since epoch (server clock)
+}
+
+type QuestionChoiceMsg struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
+}
+
+// QuestionReveal is broadcast when the question ends.
+type QuestionRevealMsg struct {
+	Index           int              `json:"index"`
+	CorrectChoiceID string           `json:"correctChoiceId"`
+	PerChoiceCounts map[string]int   `json:"perChoiceCounts"`
+	Leaderboard     []LeaderboardRow `json:"leaderboard"`
+	IsLast          bool             `json:"isLast"`
+}
+
+// AnswerAck is sent only to the player who submitted an answer.
+type AnswerAckMsg struct {
+	QuestionIndex int  `json:"questionIndex"`
+	Accepted      bool `json:"accepted"`
+}
+
+// AnswerResult is sent to a player at reveal time with their per-question outcome.
+type AnswerResultMsg struct {
+	Index         int  `json:"index"`
+	WasCorrect    bool `json:"wasCorrect"`
+	PointsAwarded int  `json:"pointsAwarded"`
+	TotalScore    int  `json:"totalScore"`
+	Rank          int  `json:"rank"`
+}
+
+type GameFinishedMsg struct {
+	Leaderboard []LeaderboardRow `json:"leaderboard"`
+}
+
+type LeaderboardRow struct {
+	PlayerID string `json:"playerId"`
+	Nickname string `json:"nickname"`
+	Score    int    `json:"score"`
+}
+
 // Message type strings (shared with frontend).
 const (
-	TypeHostCreate   = "host.create"
-	TypeHostAttach   = "host.attach"
-	TypePlayerJoin   = "player.join"
-	TypePlayerAttach = "player.attach"
-	TypeHelloHost    = "hello.host"
-	TypeHelloPlayer  = "hello.player"
-	TypeLobbyUpdate  = "lobby.update"
-	TypeError        = "error"
+	TypeHostCreate     = "host.create"
+	TypeHostAttach     = "host.attach"
+	TypePlayerJoin     = "player.join"
+	TypePlayerAttach   = "player.attach"
+	TypeHelloHost      = "hello.host"
+	TypeHelloPlayer    = "hello.player"
+	TypeLobbyUpdate    = "lobby.update"
+	TypeError          = "error"
+	TypeHostStart      = "host.start"
+	TypeHostReveal     = "host.reveal"
+	TypeHostNext       = "host.next"
+	TypePlayerAnswer   = "player.answer"
+	TypeQuestionStart  = "question.start"
+	TypeQuestionReveal = "question.reveal"
+	TypeAnswerAck      = "answer.ack"
+	TypeAnswerResult   = "answer.result"
+	TypeGameFinished   = "game.finished"
 )

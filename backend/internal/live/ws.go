@@ -22,6 +22,13 @@ type Handler struct {
 	Hub *Hub
 }
 
+// connRole tracks whether a conn is a host or a player so we can route
+// host.* commands and player.answer to the right place.
+type connRole struct {
+	IsHost   bool
+	PlayerID string
+}
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		OriginPatterns: []string{"*"}, // tighten in prod; nginx handles real origin checking
@@ -41,6 +48,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Track which game (if any) this connection has attached to so we can
 	// detach on disconnect.
 	var attachedGame *Game
+	role := &connRole{}
 
 	defer func() {
 		if attachedGame != nil {
@@ -66,7 +74,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		g, err := h.dispatch(ctx, c, &env)
+		g, err := h.dispatch(ctx, c, &env, attachedGame, role)
 		if err != nil {
 			sendError(c, "dispatch_error", err.Error())
 			continue
@@ -79,7 +87,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // dispatch routes an incoming envelope. If the message attaches the conn
 // to a game, the returned *Game is non-nil.
-func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope) (*Game, error) {
+func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope, current *Game, role *connRole) (*Game, error) {
 	switch env.Type {
 	case TypeHostCreate:
 		var msg HostCreateMsg
@@ -104,6 +112,7 @@ func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope) (*Game, 
 		}
 		g.mu.Unlock()
 		c.trySend(encode(TypeHelloHost, hello))
+		role.IsHost = true
 		return g, nil
 
 	case TypeHostAttach:
@@ -129,6 +138,7 @@ func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope) (*Game, 
 		}
 		g.mu.Unlock()
 		c.trySend(encode(TypeHelloHost, hello))
+		role.IsHost = true
 		return g, nil
 
 	case TypePlayerJoin:
@@ -160,7 +170,36 @@ func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope) (*Game, 
 		g.mu.Unlock()
 		c.trySend(encode(TypeHelloPlayer, hello))
 		h.Hub.BroadcastLobby(g)
+		role.PlayerID = p.ID
 		return g, nil
+
+	case TypeHostStart:
+		if !role.IsHost || current == nil {
+			return nil, errors.New("not host")
+		}
+		return nil, h.Hub.Start(current)
+
+	case TypeHostReveal:
+		if !role.IsHost || current == nil {
+			return nil, errors.New("not host")
+		}
+		return nil, h.Hub.Reveal(current)
+
+	case TypeHostNext:
+		if !role.IsHost || current == nil {
+			return nil, errors.New("not host")
+		}
+		return nil, h.Hub.Next(current)
+
+	case TypePlayerAnswer:
+		if role.PlayerID == "" || current == nil {
+			return nil, errors.New("not a player")
+		}
+		var msg PlayerAnswerMsg
+		if err := json.Unmarshal(env.Data, &msg); err != nil {
+			return nil, err
+		}
+		return nil, h.Hub.Answer(current, role.PlayerID, msg.ChoiceID)
 
 	default:
 		return nil, errors.New("unknown message type: " + env.Type)

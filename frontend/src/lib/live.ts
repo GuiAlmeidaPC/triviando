@@ -9,6 +9,15 @@ export const MsgType = {
   HelloPlayer: "hello.player",
   LobbyUpdate: "lobby.update",
   Error: "error",
+  HostStart: "host.start",
+  HostReveal: "host.reveal",
+  HostNext: "host.next",
+  PlayerAnswer: "player.answer",
+  QuestionStart: "question.start",
+  QuestionReveal: "question.reveal",
+  AnswerAck: "answer.ack",
+  AnswerResult: "answer.result",
+  GameFinished: "game.finished",
 } as const;
 
 export interface PlayerInfo {
@@ -41,4 +50,50 @@ export interface LobbyUpdate {
 export interface ErrorMsg {
   code: string;
   message: string;
+}
+
+export interface QuestionChoice {
+  id: string;
+  text: string;
+}
+
+export interface QuestionStart {
+  index: number;
+  total: number;
+  prompt: string;
+  choices: QuestionChoice[];
+  timeLimitSeconds: number;
+  startedAt: number;
+  endsAt: number;
+}
+
+export interface LeaderboardRow {
+  playerId: string;
+  nickname: string;
+  score: number;
+}
+
+export interface QuestionReveal {
+  index: number;
+  correctChoiceId: string;
+  perChoiceCounts: Record<string, number>;
+  leaderboard: LeaderboardRow[];
+  isLast: boolean;
+}
+
+export interface AnswerAck {
+  questionIndex: number;
+  accepted: boolean;
+}
+
+export interface AnswerResult {
+  index: number;
+  wasCorrect: boolean;
+  pointsAwarded: number;
+  totalScore: number;
+  rank: number;
+}
+
+export interface GameFinished {
+  leaderboard: LeaderboardRow[];
 }
