@@ -8,7 +8,7 @@ import {
   type PlayerInfo,
   type ErrorMsg,
   type QuestionStart,
-  type AnswerResult,
+  type QuestionReveal,
   type GameFinished,
 } from "../lib/live";
 import { useCountdown } from "../lib/useCountdown";
@@ -32,7 +32,8 @@ export default function Play() {
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("joining");
   const [question, setQuestion] = useState<QuestionStart | null>(null);
-  const [result, setResult] = useState<AnswerResult | null>(null);
+  const [reveal, setReveal] = useState<QuestionReveal | null>(null);
+  const [myChoice, setMyChoice] = useState<string | null>(null);
   const [finished, setFinished] = useState<GameFinished | null>(null);
 
   const sockRef = useRef<LiveSocket | null>(null);
@@ -79,14 +80,15 @@ export default function Play() {
           break;
         case MsgType.QuestionStart:
           setQuestion(env.data as QuestionStart);
-          setResult(null);
+          setReveal(null);
+          setMyChoice(null);
           setPhase("active");
           break;
         case MsgType.AnswerAck:
           setPhase("answered");
           break;
-        case MsgType.AnswerResult:
-          setResult(env.data as AnswerResult);
+        case MsgType.QuestionReveal:
+          setReveal(env.data as QuestionReveal);
           setPhase("result");
           break;
         case MsgType.GameFinished:
@@ -127,6 +129,7 @@ export default function Play() {
 
   function answer(choiceId: string) {
     sockRef.current?.send(MsgType.PlayerAnswer, { choiceId });
+    setMyChoice(choiceId);
     setPhase("answered");
   }
 
@@ -205,23 +208,51 @@ export default function Play() {
           </div>
         )}
 
-        {phase === "result" && result && (
-          <div className="text-center space-y-4 pt-6">
-            <p className={`text-4xl font-bold ${result.wasCorrect ? "text-green-400" : "text-red-400"}`}>
-              {result.wasCorrect ? "Correct!" : "Wrong"}
-            </p>
-            {result.pointsAwarded > 0 && (
-              <p className="text-2xl">+{result.pointsAwarded} points</p>
-            )}
-            <p className="text-slate-400">
-              Total: <span className="text-slate-100 font-mono">{result.totalScore}</span>
-            </p>
-            <p className="text-slate-400">
-              Rank: <span className="text-slate-100 font-mono">#{result.rank}</span>
-            </p>
-            <p className="text-slate-500 text-sm pt-4">Waiting for next question…</p>
-          </div>
-        )}
+        {phase === "result" && reveal && question && (() => {
+          const answered = myChoice !== null;
+          const wasCorrect = answered && myChoice === reveal.correctChoiceId;
+          let headline: string;
+          let headlineClass: string;
+          if (!answered) {
+            headline = "No answer";
+            headlineClass = "text-slate-400";
+          } else if (wasCorrect) {
+            headline = "Correct!";
+            headlineClass = "text-green-400";
+          } else {
+            headline = "Wrong";
+            headlineClass = "text-red-400";
+          }
+          return (
+            <div className="space-y-4">
+              <p className={`text-4xl font-bold text-center ${headlineClass}`}>{headline}</p>
+              <p className="text-slate-400 text-center text-sm">The correct answer:</p>
+              <div className="grid grid-cols-1 gap-3">
+                {question.choices.map((c, i) => {
+                  const isCorrect = c.id === reveal.correctChoiceId;
+                  const isMine = c.id === myChoice;
+                  const base = choiceColors[i % choiceColors.length].split(" ")[0];
+                  let cls = `${base} text-white font-semibold py-4 px-4 rounded-lg text-lg flex items-center justify-between`;
+                  if (isCorrect) {
+                    cls += " ring-4 ring-white";
+                  } else {
+                    cls += " opacity-40";
+                  }
+                  return (
+                    <div key={c.id} className={cls}>
+                      <span>{c.text}</span>
+                      <span className="text-sm font-normal">
+                        {isCorrect && "✓ correct"}
+                        {isMine && !isCorrect && "your pick"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-slate-500 text-sm text-center pt-2">Waiting for next question…</p>
+            </div>
+          );
+        })()}
 
         {phase === "finished" && finished && me && (
           <div className="space-y-6 text-center">

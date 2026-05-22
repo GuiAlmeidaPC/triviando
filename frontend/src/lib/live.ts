@@ -18,7 +18,6 @@ export const MsgType = {
   QuestionStart: "question.start",
   QuestionReveal: "question.reveal",
   AnswerAck: "answer.ack",
-  AnswerResult: "answer.result",
   GameFinished: "game.finished",
 } as const;
 
@@ -79,21 +78,14 @@ export interface QuestionReveal {
   index: number;
   correctChoiceId: string;
   perChoiceCounts: Record<string, number>;
-  leaderboard: LeaderboardRow[];
+  // Only present for the host — players never receive scores during the game.
+  leaderboard?: LeaderboardRow[];
   isLast: boolean;
 }
 
 export interface AnswerAck {
   questionIndex: number;
   accepted: boolean;
-}
-
-export interface AnswerResult {
-  index: number;
-  wasCorrect: boolean;
-  pointsAwarded: number;
-  totalScore: number;
-  rank: number;
 }
 
 export interface GameFinished {

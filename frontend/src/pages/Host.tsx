@@ -258,7 +258,7 @@ export default function Host() {
                 );
               })}
             </div>
-            <Leaderboard rows={reveal.leaderboard} />
+            <Leaderboard rows={reveal.leaderboard ?? []} />
             <button
               onClick={() => send(MsgType.HostNext)}
               className="w-full bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-semibold py-3 rounded-lg transition"

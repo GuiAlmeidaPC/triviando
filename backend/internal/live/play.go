@@ -213,32 +213,30 @@ func (h *Hub) revealLocked(g *Game) {
 	lb := leaderboardLocked(g)
 	isLast := g.currentIdx+1 >= len(g.Quiz.Questions)
 
-	// Broadcast public reveal to everyone.
-	h.broadcastLocked(g, TypeQuestionReveal, QuestionRevealMsg{
+	// Host sees the full reveal with leaderboard.
+	hostMsg := encode(TypeQuestionReveal, QuestionRevealMsg{
 		Index:           g.currentIdx,
 		CorrectChoiceID: correctID,
 		PerChoiceCounts: counts,
 		Leaderboard:     lb,
 		IsLast:          isLast,
 	})
-
-	// Per-player result message (private).
-	rankByPlayer := map[string]int{}
-	for i, row := range lb {
-		rankByPlayer[row.PlayerID] = i + 1
+	if g.host != nil {
+		g.host.trySend(hostMsg)
 	}
-	for pid, p := range g.players {
-		if p.conn == nil {
-			continue
+
+	// Players see only the correct answer + counts. Score / rank / points
+	// stay hidden until game.finished so the final leaderboard is a surprise.
+	playerMsg := encode(TypeQuestionReveal, QuestionRevealMsg{
+		Index:           g.currentIdx,
+		CorrectChoiceID: correctID,
+		PerChoiceCounts: counts,
+		IsLast:          isLast,
+	})
+	for _, p := range g.players {
+		if p.conn != nil {
+			p.conn.trySend(playerMsg)
 		}
-		a, answered := g.currentAnswers[pid]
-		p.conn.trySend(encode(TypeAnswerResult, AnswerResultMsg{
-			Index:         g.currentIdx,
-			WasCorrect:    answered && a.WasCorrect,
-			PointsAwarded: a.Awarded,
-			TotalScore:    p.Score,
-			Rank:          rankByPlayer[pid],
-		}))
 	}
 }
 

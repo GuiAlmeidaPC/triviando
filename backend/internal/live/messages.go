@@ -90,12 +90,14 @@ type QuestionChoiceMsg struct {
 	Text string `json:"text"`
 }
 
-// QuestionReveal is broadcast when the question ends.
+// QuestionReveal is sent when a question ends. Host receives it with a full
+// leaderboard; players receive the same message with leaderboard omitted —
+// scores stay hidden until game.finished so the result is a surprise.
 type QuestionRevealMsg struct {
 	Index           int              `json:"index"`
 	CorrectChoiceID string           `json:"correctChoiceId"`
 	PerChoiceCounts map[string]int   `json:"perChoiceCounts"`
-	Leaderboard     []LeaderboardRow `json:"leaderboard"`
+	Leaderboard     []LeaderboardRow `json:"leaderboard,omitempty"`
 	IsLast          bool             `json:"isLast"`
 }
 
@@ -103,15 +105,6 @@ type QuestionRevealMsg struct {
 type AnswerAckMsg struct {
 	QuestionIndex int  `json:"questionIndex"`
 	Accepted      bool `json:"accepted"`
-}
-
-// AnswerResult is sent to a player at reveal time with their per-question outcome.
-type AnswerResultMsg struct {
-	Index         int  `json:"index"`
-	WasCorrect    bool `json:"wasCorrect"`
-	PointsAwarded int  `json:"pointsAwarded"`
-	TotalScore    int  `json:"totalScore"`
-	Rank          int  `json:"rank"`
 }
 
 type GameFinishedMsg struct {
@@ -141,6 +134,5 @@ const (
 	TypeQuestionStart  = "question.start"
 	TypeQuestionReveal = "question.reveal"
 	TypeAnswerAck      = "answer.ack"
-	TypeAnswerResult   = "answer.result"
 	TypeGameFinished   = "game.finished"
 )
