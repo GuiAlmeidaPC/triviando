@@ -3,6 +3,8 @@ package httpsrv
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/GuiAlmeidaPC/triviando/backend/internal/live"
@@ -11,6 +13,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
+// maxRequestBodyBytes caps JSON request bodies for /api endpoints.
+const maxRequestBodyBytes = 1 << 20 // 1 MiB
+
 func New(st *store.Store, hub *live.Hub) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -18,6 +23,8 @@ func New(st *store.Store, hub *live.Hub) http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(securityHeaders)
+	r.Use(bodyLimit(maxRequestBodyBytes))
 	r.Use(ownerMiddleware)
 
 	r.Get("/healthz", healthz)
@@ -37,11 +44,54 @@ func New(st *store.Store, hub *live.Hub) http.Handler {
 	// WebSocket handler mounted outside chi's middleware stack — the Logger
 	// and Timeout middleware wrap the response writer in ways that break
 	// connection hijacking.
-	wsh := &live.Handler{Hub: hub}
+	wsh := &live.Handler{
+		Hub:            hub,
+		AllowedOrigins: allowedOrigins(),
+	}
 	mux := http.NewServeMux()
-	mux.Handle("/ws", wsh)
+	mux.Handle("/ws", securityHeaders(wsh))
 	mux.Handle("/", r)
 	return mux
+}
+
+// allowedOrigins reads TRIVIANDO_ALLOWED_ORIGINS (comma-separated host:port
+// patterns). Empty falls back to same-origin (compared against r.Host).
+func allowedOrigins() []string {
+	v := os.Getenv("TRIVIANDO_ALLOWED_ORIGINS")
+	if v == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := parts[:0]
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "same-origin")
+		h.Set("X-Frame-Options", "DENY")
+		if r.TLS != nil {
+			h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func bodyLimit(n int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, n)
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func healthz(w http.ResponseWriter, _ *http.Request) {

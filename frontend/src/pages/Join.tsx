@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { NICKNAME_MAX_LEN } from "../lib/live";
 
 export default function Join() {
   const [searchParams] = useSearchParams();
@@ -85,7 +86,7 @@ export default function Join() {
           onChange={(e) => setNickname(e.target.value)}
           placeholder="Your nickname"
           className="w-full bg-slate-900 border border-slate-800 rounded-lg px-4 py-3 focus:border-fuchsia-500 focus:outline-none"
-          maxLength={20}
+          maxLength={NICKNAME_MAX_LEN}
         />
         <button
           type="submit"

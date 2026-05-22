@@ -13,6 +13,7 @@ import {
 } from "../lib/live";
 import { useCountdown } from "../lib/useCountdown";
 import { QRCodeSVG } from "qrcode.react";
+import { getOwnerToken } from "../lib/owner";
 
 const hostTokenKey = (gameId: string) => `triviando.hostToken.${gameId}`;
 
@@ -116,7 +117,7 @@ export default function Host() {
       if (!token) setError("Missing host token for this game.");
       else sock.send(MsgType.HostAttach, { gameId: routeGameId, hostToken: token });
     } else if (startQuizId) {
-      sock.send(MsgType.HostCreate, { quizId: startQuizId });
+      sock.send(MsgType.HostCreate, { quizId: startQuizId, ownerToken: getOwnerToken() });
     } else {
       setError("No quiz to host.");
     }

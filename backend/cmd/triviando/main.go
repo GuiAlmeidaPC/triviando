@@ -30,6 +30,8 @@ func main() {
 	defer st.Close()
 
 	hub := live.NewHub(st)
+	stopReaper := hub.StartReaper(5 * time.Minute)
+	defer stopReaper()
 
 	srv := &http.Server{
 		Addr:              addr,

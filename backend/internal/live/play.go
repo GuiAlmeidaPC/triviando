@@ -2,6 +2,7 @@ package live
 
 import (
 	"errors"
+	"math"
 	"sort"
 	"time"
 
@@ -39,7 +40,7 @@ func Score(base, timeLimitSec, answerAtMS, questionStartMS int64, correct bool) 
 	} else if remaining > 1 {
 		remaining = 1
 	}
-	return int(float64(base)*(0.5+0.5*remaining) + 0.5)
+	return int(math.Round(float64(base) * (0.5 + 0.5*remaining)))
 }
 
 // --- Hub operations ---------------------------------------------------------
@@ -134,8 +135,10 @@ func (h *Hub) Next(g *Game) error {
 		h.broadcastLocked(g, TypeGameFinished, GameFinishedMsg{
 			Leaderboard: leaderboardLocked(g),
 		})
+		h.scheduleEvictionLocked(g)
 		return nil
 	}
+	g.lastActivity = time.Now()
 	return h.beginQuestionLocked(g)
 }
 

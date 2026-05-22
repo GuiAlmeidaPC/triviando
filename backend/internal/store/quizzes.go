@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/GuiAlmeidaPC/triviando/backend/internal/ids"
@@ -100,14 +101,10 @@ func (s *Store) GetQuiz(ctx context.Context, id string) (*Quiz, error) {
 
 	// Load all choices for these questions in one go.
 	args := make([]any, len(qIDs))
-	placeholders := ""
 	for i, id := range qIDs {
 		args[i] = id
-		if i > 0 {
-			placeholders += ","
-		}
-		placeholders += "?"
 	}
+	placeholders := strings.Repeat("?,", len(qIDs)-1) + "?"
 	cRows, err := s.DB.QueryContext(ctx,
 		`SELECT id, question_id, position, text, is_correct FROM choices WHERE question_id IN (`+placeholders+`) ORDER BY position`, args...)
 	if err != nil {

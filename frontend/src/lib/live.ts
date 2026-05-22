@@ -1,5 +1,7 @@
 // Message type constants and payload shapes, mirroring backend/internal/live/messages.go.
 
+export const NICKNAME_MAX_LEN = 32;
+
 export const MsgType = {
   HostCreate: "host.create",
   HostAttach: "host.attach",

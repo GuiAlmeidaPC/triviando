@@ -12,7 +12,8 @@ type Envelope struct {
 // --- client → server message payloads --------------------------------------
 
 type HostCreateMsg struct {
-	QuizID string `json:"quizId"`
+	QuizID     string `json:"quizId"`
+	OwnerToken string `json:"ownerToken"`
 }
 
 type HostAttachMsg struct {

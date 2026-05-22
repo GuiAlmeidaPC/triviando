@@ -38,6 +38,10 @@ type Game struct {
 	questionEndMS    int64
 	currentAnswers   map[string]playerAnswer // by playerID, reset each question
 	currentTimer     *time.Timer
+
+	// Lifecycle bookkeeping.
+	lastActivity time.Time
+	evictTimer   *time.Timer
 }
 
 type playerAnswer struct {
@@ -64,6 +68,7 @@ func newGame(id, pin, hostToken string, q *store.Quiz) *Game {
 		State:         StateLobby,
 		players:       map[string]*player{},
 		playerByToken: map[string]*player{},
+		lastActivity:  time.Now(),
 	}
 }
 
