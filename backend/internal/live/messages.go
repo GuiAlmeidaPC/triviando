@@ -26,6 +26,7 @@ type PlayerJoinMsg struct {
 }
 
 type PlayerAttachMsg struct {
+	GameID      string `json:"gameId"`
 	PlayerToken string `json:"playerToken"`
 }
 

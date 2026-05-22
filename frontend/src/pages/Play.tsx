@@ -47,10 +47,33 @@ export default function Play() {
     sockRef.current = sock;
     sock.on((env: Envelope) => {
       switch (env.type) {
-        case MsgType.HelloPlayer:
-          setMe(env.data as HelloPlayer);
-          setPhase("lobby");
+        case MsgType.HelloPlayer: {
+          const d = env.data as HelloPlayer;
+          setMe(d);
+          
+          // Store active session metadata for resumption
+          localStorage.setItem(
+            "triviando.activePlayerSession",
+            JSON.stringify({
+              gameId: d.gameId,
+              pin,
+              nickname: d.nickname,
+              playerId: d.playerId,
+              playerToken: d.playerToken,
+              quizTitle: d.quizTitle,
+            })
+          );
+
+          // Restore phase from state
+          if (d.state === "question_active") {
+            setPhase("active");
+          } else if (d.state === "finished") {
+            setPhase("finished");
+          } else {
+            setPhase("lobby");
+          }
           break;
+        }
         case MsgType.LobbyUpdate:
           setPlayers((env.data as LobbyUpdate).players);
           break;
@@ -59,6 +82,9 @@ export default function Play() {
           setResult(null);
           setPhase("active");
           break;
+        case MsgType.AnswerAck:
+          setPhase("answered");
+          break;
         case MsgType.AnswerResult:
           setResult(env.data as AnswerResult);
           setPhase("result");
@@ -66,14 +92,36 @@ export default function Play() {
         case MsgType.GameFinished:
           setFinished(env.data as GameFinished);
           setPhase("finished");
+          localStorage.removeItem("triviando.activePlayerSession");
           break;
         case MsgType.Error:
           setError((env.data as ErrorMsg).message);
+          localStorage.removeItem("triviando.activePlayerSession");
           break;
       }
     });
     sock.connect();
-    sock.send(MsgType.PlayerJoin, { pin, nickname });
+
+    const rawSession = localStorage.getItem("triviando.activePlayerSession");
+    let storedSession: any = null;
+    if (rawSession) {
+      try {
+        storedSession = JSON.parse(rawSession);
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const isMatchingSession = storedSession &&
+      storedSession.pin === pin &&
+      storedSession.nickname === nickname;
+
+    if (isMatchingSession) {
+      sock.send(MsgType.PlayerAttach, { gameId: storedSession.gameId, playerToken: storedSession.playerToken });
+    } else {
+      sock.send(MsgType.PlayerJoin, { pin, nickname });
+    }
+
     return () => sock.close();
   }, [pin, nickname]);
 

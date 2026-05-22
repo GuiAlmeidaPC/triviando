@@ -173,6 +173,59 @@ func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope, current 
 		role.PlayerID = p.ID
 		return g, nil
 
+	case TypePlayerAttach:
+		var msg PlayerAttachMsg
+		if err := json.Unmarshal(env.Data, &msg); err != nil {
+			return nil, err
+		}
+		g, err := h.Hub.GameByID(msg.GameID)
+		if err != nil {
+			return nil, err
+		}
+		p, err := h.Hub.AttachPlayer(g, msg.PlayerToken, c)
+		if err != nil {
+			return nil, err
+		}
+		g.mu.Lock()
+		hello := HelloPlayerMsg{
+			GameID:      g.ID,
+			PlayerID:    p.ID,
+			PlayerToken: p.Token,
+			Nickname:    p.Nickname,
+			QuizTitle:   g.Quiz.Title,
+			State:       string(g.State),
+		}
+		c.trySend(encode(TypeHelloPlayer, hello))
+
+		// State Restoration: if currently active question, send question details & answer status
+		if g.State == StateQuestionActive {
+			q := &g.Quiz.Questions[g.currentIdx]
+			choices := make([]QuestionChoiceMsg, len(q.Choices))
+			for i, ch := range q.Choices {
+				choices[i] = QuestionChoiceMsg{ID: ch.ID, Text: ch.Text}
+			}
+			c.trySend(encode(TypeQuestionStart, QuestionStartMsg{
+				Index:            g.currentIdx,
+				Total:            len(g.Quiz.Questions),
+				Prompt:           q.Prompt,
+				Choices:          choices,
+				TimeLimitSeconds: q.TimeLimitSeconds,
+				StartedAt:        g.questionStartMS,
+				EndsAt:           g.questionEndMS,
+			}))
+
+			// If already answered, let them know by sending AnswerAckMsg
+			if _, answered := g.currentAnswers[p.ID]; answered {
+				c.trySend(encode(TypeAnswerAck, AnswerAckMsg{
+					QuestionIndex: g.currentIdx,
+					Accepted:      true,
+				}))
+			}
+		}
+		g.mu.Unlock()
+		role.PlayerID = p.ID
+		return g, nil
+
 	case TypeHostStart:
 		if !role.IsHost || current == nil {
 			return nil, errors.New("not host")
