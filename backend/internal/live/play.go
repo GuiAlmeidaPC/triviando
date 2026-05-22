@@ -186,14 +186,10 @@ func (h *Hub) onTimerExpired(g *Game, expectedIdx int) {
 	h.revealLocked(g)
 }
 
-func (h *Hub) revealLocked(g *Game) {
-	if g.currentTimer != nil {
-		g.currentTimer.Stop()
-		g.currentTimer = nil
-	}
-	g.State = StateQuestionReveal
+// PlayerRevealLocked builds the player-facing reveal payload (no leaderboard).
+// Caller must hold g.mu and the game must be in StateQuestionReveal.
+func PlayerRevealLocked(g *Game) QuestionRevealMsg {
 	q := &g.Quiz.Questions[g.currentIdx]
-
 	correctID := ""
 	for _, c := range q.Choices {
 		if c.IsCorrect {
@@ -201,7 +197,6 @@ func (h *Hub) revealLocked(g *Game) {
 			break
 		}
 	}
-
 	counts := map[string]int{}
 	for _, c := range q.Choices {
 		counts[c.ID] = 0
@@ -209,17 +204,31 @@ func (h *Hub) revealLocked(g *Game) {
 	for _, a := range g.currentAnswers {
 		counts[a.ChoiceID]++
 	}
-
-	lb := leaderboardLocked(g)
-	isLast := g.currentIdx+1 >= len(g.Quiz.Questions)
-
-	// Host sees the full reveal with leaderboard.
-	hostMsg := encode(TypeQuestionReveal, QuestionRevealMsg{
+	return QuestionRevealMsg{
 		Index:           g.currentIdx,
 		CorrectChoiceID: correctID,
 		PerChoiceCounts: counts,
+		IsLast:          g.currentIdx+1 >= len(g.Quiz.Questions),
+	}
+}
+
+func (h *Hub) revealLocked(g *Game) {
+	if g.currentTimer != nil {
+		g.currentTimer.Stop()
+		g.currentTimer = nil
+	}
+	g.State = StateQuestionReveal
+
+	pr := PlayerRevealLocked(g)
+	lb := leaderboardLocked(g)
+
+	// Host sees the full reveal with leaderboard.
+	hostMsg := encode(TypeQuestionReveal, QuestionRevealMsg{
+		Index:           pr.Index,
+		CorrectChoiceID: pr.CorrectChoiceID,
+		PerChoiceCounts: pr.PerChoiceCounts,
 		Leaderboard:     lb,
-		IsLast:          isLast,
+		IsLast:          pr.IsLast,
 	})
 	if g.host != nil {
 		g.host.trySend(hostMsg)
@@ -227,12 +236,7 @@ func (h *Hub) revealLocked(g *Game) {
 
 	// Players see only the correct answer + counts. Score / rank / points
 	// stay hidden until game.finished so the final leaderboard is a surprise.
-	playerMsg := encode(TypeQuestionReveal, QuestionRevealMsg{
-		Index:           g.currentIdx,
-		CorrectChoiceID: correctID,
-		PerChoiceCounts: counts,
-		IsLast:          isLast,
-	})
+	playerMsg := encode(TypeQuestionReveal, pr)
 	for _, p := range g.players {
 		if p.conn != nil {
 			p.conn.trySend(playerMsg)

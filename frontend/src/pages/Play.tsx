@@ -37,6 +37,8 @@ export default function Play() {
   const [finished, setFinished] = useState<GameFinished | null>(null);
 
   const sockRef = useRef<LiveSocket | null>(null);
+  const phaseRef = useRef<Phase>("joining");
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
   const remaining = useCountdown(phase === "active" && question ? question.endsAt : null);
 
   useEffect(() => {
@@ -82,6 +84,7 @@ export default function Play() {
           setQuestion(env.data as QuestionStart);
           setReveal(null);
           setMyChoice(null);
+          setError(null);
           setPhase("active");
           break;
         case MsgType.AnswerAck:
@@ -89,6 +92,7 @@ export default function Play() {
           break;
         case MsgType.QuestionReveal:
           setReveal(env.data as QuestionReveal);
+          setError(null);
           setPhase("result");
           break;
         case MsgType.GameFinished:
@@ -96,10 +100,18 @@ export default function Play() {
           setPhase("finished");
           localStorage.removeItem("triviando.activePlayerSession");
           break;
-        case MsgType.Error:
-          setError((env.data as ErrorMsg).message);
-          localStorage.removeItem("triviando.activePlayerSession");
+        case MsgType.Error: {
+          const msg = (env.data as ErrorMsg).message;
+          // Mid-game races (e.g. clicking after host reveals) are benign —
+          // log them but don't surface or kill the session.
+          if (phaseRef.current === "joining") {
+            setError(msg);
+            localStorage.removeItem("triviando.activePlayerSession");
+          } else {
+            console.warn("server error (ignored):", msg);
+          }
           break;
+        }
       }
     });
     sock.connect();
@@ -211,10 +223,12 @@ export default function Play() {
         {phase === "result" && reveal && question && (() => {
           const answered = myChoice !== null;
           const wasCorrect = answered && myChoice === reveal.correctChoiceId;
+          const correctChoice = question.choices.find((c) => c.id === reveal.correctChoiceId);
+          const totalVotes = Object.values(reveal.perChoiceCounts).reduce((a, b) => a + b, 0);
           let headline: string;
           let headlineClass: string;
           if (!answered) {
-            headline = "No answer";
+            headline = "Time's up";
             headlineClass = "text-slate-400";
           } else if (wasCorrect) {
             headline = "Correct!";
@@ -224,31 +238,49 @@ export default function Play() {
             headlineClass = "text-red-400";
           }
           return (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <p className={`text-4xl font-bold text-center ${headlineClass}`}>{headline}</p>
-              <p className="text-slate-400 text-center text-sm">The correct answer:</p>
-              <div className="grid grid-cols-1 gap-3">
+
+              {correctChoice && (
+                <div className="bg-green-950/40 border-2 border-green-500 rounded-lg p-4 text-center">
+                  <p className="text-xs uppercase tracking-wider text-green-400 font-semibold mb-1">
+                    Correct answer
+                  </p>
+                  <p className="text-xl font-semibold text-green-100">{correctChoice.text}</p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <p className="text-slate-400 text-sm">Votes ({totalVotes})</p>
                 {question.choices.map((c, i) => {
                   const isCorrect = c.id === reveal.correctChoiceId;
                   const isMine = c.id === myChoice;
+                  const count = reveal.perChoiceCounts[c.id] ?? 0;
+                  const pct = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
                   const base = choiceColors[i % choiceColors.length].split(" ")[0];
-                  let cls = `${base} text-white font-semibold py-4 px-4 rounded-lg text-lg flex items-center justify-between`;
-                  if (isCorrect) {
-                    cls += " ring-4 ring-white";
-                  } else {
-                    cls += " opacity-40";
-                  }
                   return (
-                    <div key={c.id} className={cls}>
-                      <span>{c.text}</span>
-                      <span className="text-sm font-normal">
-                        {isCorrect && "✓ correct"}
-                        {isMine && !isCorrect && "your pick"}
-                      </span>
+                    <div key={c.id} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className={isCorrect ? "text-green-300 font-semibold" : "text-slate-300"}>
+                          {c.text}
+                          {isCorrect && " ✓"}
+                          {isMine && (
+                            <span className="text-slate-500 ml-2 text-xs">(you)</span>
+                          )}
+                        </span>
+                        <span className="font-mono text-slate-400">{count}</span>
+                      </div>
+                      <div className="h-3 bg-slate-900 rounded overflow-hidden">
+                        <div
+                          className={`${base} h-full ${isCorrect ? "" : "opacity-50"} transition-all`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
               </div>
+
               <p className="text-slate-500 text-sm text-center pt-2">Waiting for next question…</p>
             </div>
           );

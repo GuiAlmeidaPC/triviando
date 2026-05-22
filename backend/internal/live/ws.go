@@ -208,8 +208,10 @@ func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope, current 
 		}
 		c.trySend(encode(TypeHelloPlayer, hello))
 
-		// State Restoration: if currently active question, send question details & answer status
-		if g.State == StateQuestionActive {
+		// State restoration: replay enough messages so the client lands in the
+		// right phase. Active → send question + answer ack if applicable.
+		// Reveal → send question (so the UI has the choices) then the reveal.
+		if g.State == StateQuestionActive || g.State == StateQuestionReveal {
 			q := &g.Quiz.Questions[g.currentIdx]
 			choices := make([]QuestionChoiceMsg, len(q.Choices))
 			for i, ch := range q.Choices {
@@ -230,6 +232,10 @@ func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope, current 
 					QuestionIndex: g.currentIdx,
 					Accepted:      true,
 				}))
+			}
+
+			if g.State == StateQuestionReveal {
+				c.trySend(encode(TypeQuestionReveal, PlayerRevealLocked(g)))
 			}
 		}
 		g.mu.Unlock()
