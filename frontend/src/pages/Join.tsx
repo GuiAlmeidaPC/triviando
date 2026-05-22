@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 export default function Join() {
-  const [pin, setPin] = useState("");
+  const [searchParams] = useSearchParams();
+  const [pin, setPin] = useState(searchParams.get("pin") ?? "");
   const [nickname, setNickname] = useState("");
   const nav = useNavigate();
 

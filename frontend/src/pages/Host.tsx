@@ -12,6 +12,7 @@ import {
   type GameFinished,
 } from "../lib/live";
 import { useCountdown } from "../lib/useCountdown";
+import { QRCodeSVG } from "qrcode.react";
 
 const hostTokenKey = (gameId: string) => `triviando.hostToken.${gameId}`;
 
@@ -108,13 +109,51 @@ export default function Host() {
 
         {phase === "lobby" && pin && (
           <div className="space-y-6">
-            <div className="text-center space-y-2">
-              <p className="text-slate-400">Join at</p>
-              <p className="text-xl font-mono">{location.host}</p>
-              <p className="text-slate-400 pt-4">PIN</p>
-              <p className="text-7xl font-bold tracking-widest font-mono text-fuchsia-400">{pin}</p>
-              <p className="text-slate-500 pt-2">{quizTitle}</p>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 md:p-8 backdrop-blur-md relative overflow-hidden shadow-2xl shadow-fuchsia-950/10">
+              {/* Left Column: Connection Instructions */}
+              <div className="md:col-span-7 flex flex-col justify-center space-y-4 text-center md:text-left">
+                <div>
+                  <p className="text-slate-400 text-sm font-medium uppercase tracking-wider">Join at</p>
+                  <p className="text-2xl md:text-3xl font-bold font-mono text-cyan-400 mt-1">{window.location.host}</p>
+                </div>
+                <div>
+                  <p className="text-slate-400 text-sm font-medium uppercase tracking-wider mt-2">PIN Code</p>
+                  <p className="text-6xl md:text-7xl font-extrabold tracking-widest font-mono text-fuchsia-400 mt-1 select-all filter drop-shadow-[0_0_12px_rgba(240,70,250,0.35)]">
+                    {pin}
+                  </p>
+                </div>
+                {quizTitle && (
+                  <div className="pt-3 border-t border-slate-800/60">
+                    <p className="text-slate-500 text-xs">Playing quiz</p>
+                    <p className="text-slate-300 font-semibold text-lg">{quizTitle}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: QR Code Visual Card */}
+              <div className="md:col-span-5 flex flex-col items-center justify-center p-6 bg-slate-950/60 border border-slate-800 rounded-xl relative group">
+                {/* Subtle hover gradient glow */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-fuchsia-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-xl pointer-events-none" />
+                
+                {/* QR Code Container */}
+                <div className="p-3 bg-white rounded-lg shadow-xl relative z-10">
+                  <QRCodeSVG 
+                    value={`${window.location.protocol}//${window.location.host}/join?pin=${pin}`}
+                    size={180}
+                    level="H"
+                    includeMargin={false}
+                  />
+                </div>
+                <p className="text-cyan-300 text-sm font-semibold tracking-wide uppercase mt-4 text-center z-10 flex items-center gap-1.5 animate-pulse">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                  </svg>
+                  Scan to Join
+                </p>
+                <p className="text-slate-400 text-xs mt-1 text-center z-10">Skip typing the PIN!</p>
+              </div>
             </div>
+
             <div>
               <h2 className="text-xl font-semibold mb-2">
                 Players <span className="text-slate-500 font-normal">({players.length})</span>
