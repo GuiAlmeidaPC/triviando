@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { LiveSocket, wsURL, type Envelope } from "../lib/ws";
 import {
   MsgType,
@@ -29,6 +29,7 @@ export default function Host() {
   const { gameId: routeGameId } = useParams<{ gameId: string }>();
   const [params] = useSearchParams();
   const startQuizId = params.get("quizId");
+  const navigate = useNavigate();
 
   const [pin, setPin] = useState<string | null>(null);
   const [gameId, setGameId] = useState<string | null>(routeGameId ?? null);
@@ -56,6 +57,32 @@ export default function Host() {
           setQuizTitle(d.quizTitle);
           setPlayers(d.players);
           localStorage.setItem(hostTokenKey(d.gameId), d.hostToken);
+
+          // Store active session metadata for resumption
+          localStorage.setItem(
+            "triviando.activeHostSession",
+            JSON.stringify({
+              gameId: d.gameId,
+              pin: d.pin,
+              quizTitle: d.quizTitle,
+            })
+          );
+
+          // Update URL to match gameId so refresh/reconnect works
+          if (!routeGameId || routeGameId !== d.gameId) {
+            navigate(`/host/${d.gameId}`, { replace: true });
+          }
+
+          // Restore phase from state
+          if (d.state === "question_active") {
+            setPhase("active");
+          } else if (d.state === "question_reveal") {
+            setPhase("reveal");
+          } else if (d.state === "finished") {
+            setPhase("finished");
+          } else {
+            setPhase("lobby");
+          }
           break;
         }
         case MsgType.LobbyUpdate:
@@ -73,9 +100,11 @@ export default function Host() {
         case MsgType.GameFinished:
           setFinished(env.data as GameFinished);
           setPhase("finished");
+          localStorage.removeItem("triviando.activeHostSession");
           break;
         case MsgType.Error:
           setError((env.data as ErrorMsg).message);
+          localStorage.removeItem("triviando.activeHostSession");
           break;
       }
     });

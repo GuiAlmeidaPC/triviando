@@ -5,6 +5,7 @@ import { api, type Quiz } from "../lib/api";
 export default function QuizList() {
   const [quizzes, setQuizzes] = useState<Quiz[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeSession, setActiveSession] = useState<{ gameId: string; pin: string; quizTitle: string } | null>(null);
   const nav = useNavigate();
 
   async function refresh() {
@@ -17,6 +18,15 @@ export default function QuizList() {
 
   useEffect(() => {
     refresh();
+
+    const raw = localStorage.getItem("triviando.activeHostSession");
+    if (raw) {
+      try {
+        setActiveSession(JSON.parse(raw));
+      } catch (e) {
+        // ignore
+      }
+    }
   }, []);
 
   async function onCreate() {
@@ -52,6 +62,37 @@ export default function QuizList() {
             + New quiz
           </button>
         </header>
+
+        {activeSession && (
+          <div className="bg-slate-900/60 border border-fuchsia-500/30 rounded-xl p-4 text-left space-y-2 backdrop-blur-md shadow-lg shadow-fuchsia-950/10 transition hover:border-fuchsia-500/50">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-fuchsia-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-fuchsia-500 animate-ping" />
+                Live Session Active
+              </span>
+              <button 
+                onClick={() => {
+                  localStorage.removeItem("triviando.activeHostSession");
+                  setActiveSession(null);
+                }}
+                className="text-slate-500 hover:text-slate-300 text-xs transition cursor-pointer"
+                title="Clear active session indicator"
+              >
+                Dismiss
+              </button>
+            </div>
+            <p className="text-slate-300 text-sm">
+              You are currently hosting <strong className="text-white">{activeSession.quizTitle}</strong> (PIN: <strong className="text-fuchsia-400 font-mono">{activeSession.pin}</strong>).
+            </p>
+            <Link
+              to={`/host/${activeSession.gameId}`}
+              className="inline-block text-xs font-semibold text-cyan-300 hover:text-cyan-200 underline transition"
+            >
+              Resume hosting room →
+            </Link>
+          </div>
+        )}
+
         <h1 className="text-3xl font-semibold">My quizzes</h1>
 
         {error && <p className="text-red-400">{error}</p>}
