@@ -14,6 +14,7 @@ import {
 import { useCountdown } from "../lib/useCountdown";
 import { QRCodeSVG } from "qrcode.react";
 import { getOwnerToken } from "../lib/owner";
+import { RevealBars, AnimatedLeaderboard } from "../components/Reveal";
 
 const hostTokenKey = (gameId: string) => `triviando.hostToken.${gameId}`;
 
@@ -241,24 +242,16 @@ export default function Host() {
               Question {reveal.index + 1} / {question.total}
             </p>
             <h1 className="text-2xl font-semibold text-center">{question.prompt}</h1>
-            <div className="grid grid-cols-2 gap-3">
-              {question.choices.map((c, i) => {
-                const correct = c.id === reveal.correctChoiceId;
-                const count = reveal.perChoiceCounts[c.id] ?? 0;
-                return (
-                  <div
-                    key={c.id}
-                    className={`${choiceColors[i % choiceColors.length]} rounded-lg p-4 text-white font-semibold flex justify-between ${
-                      correct ? "ring-4 ring-white" : "opacity-50"
-                    }`}
-                  >
-                    <span>{c.text}</span>
-                    <span className="font-mono">{count}</span>
-                  </div>
-                );
-              })}
-            </div>
-            <Leaderboard rows={reveal.leaderboard ?? []} />
+            <RevealBars
+              choices={question.choices}
+              perChoiceCounts={reveal.perChoiceCounts}
+              correctChoiceId={reveal.correctChoiceId}
+              resetKey={reveal.index}
+            />
+            <AnimatedLeaderboard
+              rows={reveal.leaderboard ?? []}
+              resetKey={`reveal-${reveal.index}`}
+            />
             <button
               onClick={() => send(MsgType.HostNext)}
               className="w-full bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-semibold py-3 rounded-lg transition"
@@ -273,7 +266,13 @@ export default function Host() {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 bg-clip-text text-transparent">
               Game over!
             </h1>
-            <Leaderboard rows={finished.leaderboard} highlight />
+            <AnimatedLeaderboard
+              rows={finished.leaderboard}
+              highlightWinner
+              resetKey="final"
+              dramatic
+              title="Final standings"
+            />
             <Link to="/quizzes" className="inline-block bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-semibold py-3 px-6 rounded-lg transition">
               Back to quizzes
             </Link>
@@ -284,35 +283,3 @@ export default function Host() {
   );
 }
 
-function Leaderboard({
-  rows,
-  highlight = false,
-}: {
-  rows: { playerId: string; nickname: string; score: number }[];
-  highlight?: boolean;
-}) {
-  if (rows.length === 0) return null;
-  return (
-    <div className="space-y-2">
-      <h2 className="text-xl font-semibold">Leaderboard</h2>
-      <ol className="space-y-1">
-        {rows.map((r, i) => (
-          <li
-            key={r.playerId}
-            className={`flex items-center justify-between border rounded px-3 py-2 ${
-              highlight && i === 0
-                ? "bg-yellow-500/20 border-yellow-600"
-                : "bg-slate-900 border-slate-800"
-            }`}
-          >
-            <span>
-              <span className="text-slate-500 mr-3 font-mono">{i + 1}</span>
-              {r.nickname}
-            </span>
-            <span className="font-mono">{r.score}</span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}

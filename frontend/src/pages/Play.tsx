@@ -12,6 +12,7 @@ import {
   type GameFinished,
 } from "../lib/live";
 import { useCountdown } from "../lib/useCountdown";
+import { RevealBars, AnimatedLeaderboard } from "../components/Reveal";
 
 const choiceColors = [
   "bg-red-500 hover:bg-red-400 active:bg-red-600",
@@ -224,7 +225,6 @@ export default function Play() {
           const answered = myChoice !== null;
           const wasCorrect = answered && myChoice === reveal.correctChoiceId;
           const correctChoice = question.choices.find((c) => c.id === reveal.correctChoiceId);
-          const totalVotes = Object.values(reveal.perChoiceCounts).reduce((a, b) => a + b, 0);
           let headline: string;
           let headlineClass: string;
           if (!answered) {
@@ -232,17 +232,25 @@ export default function Play() {
             headlineClass = "text-slate-400";
           } else if (wasCorrect) {
             headline = "Correct!";
-            headlineClass = "text-green-400";
+            headlineClass = "text-green-400 drop-shadow-[0_0_18px_rgba(74,222,128,0.45)]";
           } else {
             headline = "Wrong";
             headlineClass = "text-red-400";
           }
           return (
             <div className="space-y-5">
-              <p className={`text-4xl font-bold text-center ${headlineClass}`}>{headline}</p>
+              <p
+                key={`headline-${reveal.index}`}
+                className={`text-4xl font-bold text-center ${headlineClass} animate-[fadeInUp_500ms_ease-out_both]`}
+              >
+                {headline}
+              </p>
 
               {correctChoice && (
-                <div className="bg-green-950/40 border-2 border-green-500 rounded-lg p-4 text-center">
+                <div
+                  key={`correct-${reveal.index}`}
+                  className="bg-green-950/40 border-2 border-green-500 rounded-lg p-4 text-center animate-[fadeInUp_600ms_ease-out_120ms_both]"
+                >
                   <p className="text-xs uppercase tracking-wider text-green-400 font-semibold mb-1">
                     Correct answer
                   </p>
@@ -250,36 +258,14 @@ export default function Play() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <p className="text-slate-400 text-sm">Votes ({totalVotes})</p>
-                {question.choices.map((c, i) => {
-                  const isCorrect = c.id === reveal.correctChoiceId;
-                  const isMine = c.id === myChoice;
-                  const count = reveal.perChoiceCounts[c.id] ?? 0;
-                  const pct = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
-                  const base = choiceColors[i % choiceColors.length].split(" ")[0];
-                  return (
-                    <div key={c.id} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className={isCorrect ? "text-green-300 font-semibold" : "text-slate-300"}>
-                          {c.text}
-                          {isCorrect && " ✓"}
-                          {isMine && (
-                            <span className="text-slate-500 ml-2 text-xs">(you)</span>
-                          )}
-                        </span>
-                        <span className="font-mono text-slate-400">{count}</span>
-                      </div>
-                      <div className="h-3 bg-slate-900 rounded overflow-hidden">
-                        <div
-                          className={`${base} h-full ${isCorrect ? "" : "opacity-50"} transition-all`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <RevealBars
+                choices={question.choices}
+                perChoiceCounts={reveal.perChoiceCounts}
+                correctChoiceId={reveal.correctChoiceId}
+                myChoice={myChoice}
+                resetKey={reveal.index}
+                compact
+              />
 
               <p className="text-slate-500 text-sm text-center pt-2">Waiting for next question…</p>
             </div>
@@ -288,27 +274,19 @@ export default function Play() {
 
         {phase === "finished" && finished && me && (
           <div className="space-y-6 text-center">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 bg-clip-text text-transparent animate-[fadeInUp_600ms_ease-out_both]">
               Game over!
             </h1>
-            <ol className="space-y-1 text-left">
-              {finished.leaderboard.map((r, i) => (
-                <li
-                  key={r.playerId}
-                  className={`flex items-center justify-between border rounded px-3 py-2 ${
-                    r.playerId === me.playerId
-                      ? "bg-fuchsia-950/30 border-fuchsia-700"
-                      : "bg-slate-900 border-slate-800"
-                  }`}
-                >
-                  <span>
-                    <span className="text-slate-500 mr-3 font-mono">{i + 1}</span>
-                    {r.nickname}
-                  </span>
-                  <span className="font-mono">{r.score}</span>
-                </li>
-              ))}
-            </ol>
+            <div className="text-left">
+              <AnimatedLeaderboard
+                rows={finished.leaderboard}
+                highlightWinner
+                highlightPlayerId={me.playerId}
+                resetKey="final"
+                dramatic
+                title="Final standings"
+              />
+            </div>
             <Link to="/" className="inline-block underline text-slate-400">Back to home</Link>
           </div>
         )}
