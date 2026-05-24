@@ -23,9 +23,14 @@ export class LiveSocket {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private pongTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Sleep detection & multi-trigger listeners
+  private sleepDetectorTimer: ReturnType<typeof setInterval> | null = null;
+  private lastTickTime = Date.now();
+
   constructor(private url: string) {
     if (typeof window !== "undefined") {
       window.addEventListener("visibilitychange", this.handleVisibilityChange);
+      window.addEventListener("online", this.handleOnline);
     }
   }
 
@@ -38,6 +43,7 @@ export class LiveSocket {
       for (const m of this.queue) this.ws!.send(m);
       this.queue = [];
       this.startHeartbeat();
+      this.startSleepDetector();
     };
     this.ws.onmessage = (e) => {
       let env: Envelope;
@@ -63,6 +69,7 @@ export class LiveSocket {
       this.opened = false;
       this.ws = null;
       this.stopHeartbeat();
+      this.stopSleepDetector();
       if (!this.closedByUser) this.scheduleReconnect();
     };
     this.ws.onerror = () => {
@@ -73,19 +80,77 @@ export class LiveSocket {
   private handleVisibilityChange = () => {
     if (this.closedByUser) return;
     if (document.visibilityState === "visible") {
-      if (!this.ws || !this.opened) {
-        console.log("ws: visible and disconnected, reconnecting immediately");
-        if (this.reconnectTimer) {
-          clearTimeout(this.reconnectTimer);
-          this.reconnectTimer = null;
-        }
-        this.connect();
-      } else {
-        console.log("ws: visible and active, verifying connection via ping");
-        this.sendPing();
-      }
+      console.log("ws: visibility changed to visible - checking connection integrity");
+      this.forceReconnectIfStale();
     }
   };
+
+  private handleOnline = () => {
+    if (this.closedByUser) return;
+    console.log("ws: system online event fired - forcing fast reconnect");
+    this.forceReconnect();
+  };
+
+  private startSleepDetector() {
+    this.stopSleepDetector();
+    this.lastTickTime = Date.now();
+    this.sleepDetectorTimer = setInterval(() => {
+      const now = Date.now();
+      const delta = now - this.lastTickTime;
+      // We expect a tick every 2000ms. If it took more than 5000ms, the JS execution was suspended.
+      if (delta > 5000) {
+        console.warn(`ws: sleep/suspension detected (CPU paused for ${delta}ms). Reconnecting immediately.`);
+        this.forceReconnect();
+      }
+      this.lastTickTime = now;
+    }, 2000);
+  }
+
+  private stopSleepDetector() {
+    if (this.sleepDetectorTimer) {
+      clearInterval(this.sleepDetectorTimer);
+      this.sleepDetectorTimer = null;
+    }
+  }
+
+  private forceReconnectIfStale() {
+    if (!this.ws || !this.opened) {
+      this.forceReconnect();
+    } else {
+      // It thinks it's open, but we just became visible; let's send a ping to verify.
+      // If we don't get a pong immediately (stale TCP), the pong timeout will close and reconnect.
+      this.sendPing();
+    }
+  }
+
+  private forceReconnect() {
+    if (this.closedByUser) return;
+    console.log("ws: forcing clean disconnect for immediate reconnection");
+    
+    this.stopHeartbeat();
+    this.stopSleepDetector();
+    
+    if (this.ws) {
+      this.ws.onclose = null; // Unbind callback so standard onclose doesn't invoke double reconnect
+      this.ws.onerror = null;
+      try {
+        this.ws.close();
+      } catch (e) {
+        // ignore
+      }
+      this.ws = null;
+    }
+    
+    this.opened = false;
+    this.backoff = MIN_BACKOFF_MS; // reset backoff for instant connection
+    
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    
+    this.connect();
+  }
 
   private startHeartbeat() {
     this.stopHeartbeat();
@@ -103,7 +168,8 @@ export class LiveSocket {
     this.send("ping", {});
     this.pongTimeoutTimer = setTimeout(() => {
       console.warn("ws: heartbeat timeout (no pong), closing connection");
-      this.ws?.close();
+      // Use forceReconnect here as it handles cleanup cleanly
+      this.forceReconnect();
     }, 5000); // 5 seconds grace period for pong response
   }
 
@@ -153,14 +219,20 @@ export class LiveSocket {
     this.closedByUser = true;
     if (typeof window !== "undefined") {
       window.removeEventListener("visibilitychange", this.handleVisibilityChange);
+      window.removeEventListener("online", this.handleOnline);
     }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
     this.stopHeartbeat();
-    this.ws?.close();
-    this.ws = null;
+    this.stopSleepDetector();
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.close();
+      this.ws = null;
+    }
   }
 }
 
