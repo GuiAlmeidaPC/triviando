@@ -28,7 +28,7 @@ make build
 Deploy: see [SPEC.md §9](./SPEC.md) — host nginx serves `frontend/dist`, systemd user service runs the backend on `127.0.0.1:8001`.
 
 ```bash
-make deploy DEPLOY_HOST=deploy@example.com DEPLOY_PATH=/srv/triviando
+make deploy
 ```
 
 The host UI now keeps a recent finished-game history in SQLite and surfaces it on the quiz list page.

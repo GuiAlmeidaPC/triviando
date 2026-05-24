@@ -13,3 +13,6 @@ frontend/dist/
 .idea/
 *.swp
 frontend/tsconfig.tsbuildinfo
+
+# Antigravity CLI Metadata
+.antigravitycli/

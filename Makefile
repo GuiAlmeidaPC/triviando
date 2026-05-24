@@ -1,7 +1,7 @@
 .PHONY: dev dev-backend dev-frontend build build-backend build-frontend build-prod run clean tidy deploy
 
-DEPLOY_HOST ?=
-DEPLOY_PATH ?=
+DEPLOY_HOST ?= deploy@187.127.26.58
+DEPLOY_PATH ?= /srv/triviando
 
 # --- dev ---------------------------------------------------------------------
 # Run backend and frontend in two terminals: `make dev-backend` / `make dev-frontend`
@@ -32,8 +32,6 @@ run: build
 # --- deploy ------------------------------------------------------------------
 # Build for the VPS, ship artifacts, restart the service.
 deploy: build-prod
-	@test -n "$(DEPLOY_HOST)" || (echo "DEPLOY_HOST is required, e.g. DEPLOY_HOST=deploy@example.com" && exit 1)
-	@test -n "$(DEPLOY_PATH)" || (echo "DEPLOY_PATH is required, e.g. DEPLOY_PATH=/srv/triviando" && exit 1)
 	rsync -a backend/bin/triviando $(DEPLOY_HOST):$(DEPLOY_PATH)/backend/bin/
 	rsync -a --delete frontend/dist/ $(DEPLOY_HOST):$(DEPLOY_PATH)/frontend/dist/
 	ssh $(DEPLOY_HOST) 'systemctl --user restart triviando'
