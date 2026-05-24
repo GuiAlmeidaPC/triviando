@@ -27,6 +27,10 @@ export class LiveSocket {
   private sleepDetectorTimer: ReturnType<typeof setInterval> | null = null;
   private lastTickTime = Date.now();
 
+  // Auth handshake replayed on every (re)connection so the server can
+  // re-associate the new socket with the player/host session.
+  private handshake: { type: string; data: unknown } | null = null;
+
   constructor(private url: string) {
     if (typeof window !== "undefined") {
       window.addEventListener("visibilitychange", this.handleVisibilityChange);
@@ -40,6 +44,11 @@ export class LiveSocket {
     this.ws.onopen = () => {
       this.opened = true;
       this.backoff = MIN_BACKOFF_MS;
+      // Replay auth handshake first so the server can re-attach this socket
+      // to the existing session before any queued messages arrive.
+      if (this.handshake) {
+        this.ws!.send(JSON.stringify(this.handshake));
+      }
       for (const m of this.queue) this.ws!.send(m);
       this.queue = [];
       this.startHeartbeat();
@@ -201,6 +210,17 @@ export class LiveSocket {
     }, delay);
   }
 
+  // Remember the auth handshake to be replayed on every (re)connection.
+  // Does not send now; callers that need the initial send should call this
+  // before connect(), or rely on the next onopen.
+  setHandshake(type: string, data: unknown) {
+    this.handshake = { type, data };
+  }
+
+  clearHandshake() {
+    this.handshake = null;
+  }
+
   send(type: string, data: unknown) {
     const payload = JSON.stringify({ type, data });
     if (this.opened && this.ws) {
@@ -217,6 +237,7 @@ export class LiveSocket {
 
   close() {
     this.closedByUser = true;
+    this.handshake = null;
     if (typeof window !== "undefined") {
       window.removeEventListener("visibilitychange", this.handleVisibilityChange);
       window.removeEventListener("online", this.handleOnline);

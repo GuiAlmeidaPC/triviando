@@ -60,6 +60,13 @@ export default function Host() {
           setPlayers(d.players);
           localStorage.setItem(hostTokenKey(d.gameId), d.hostToken);
 
+          // Upgrade reconnection handshake to HostAttach so future reconnects
+          // re-attach to this game instead of attempting to create a new one.
+          sock.setHandshake(MsgType.HostAttach, {
+            gameId: d.gameId,
+            hostToken: d.hostToken,
+          });
+
           // Store active session metadata for resumption
           localStorage.setItem(
             "triviando.activeHostSession",
@@ -116,9 +123,9 @@ export default function Host() {
     if (routeGameId) {
       const token = localStorage.getItem(hostTokenKey(routeGameId));
       if (!token) setError("Missing host token for this game.");
-      else sock.send(MsgType.HostAttach, { gameId: routeGameId, hostToken: token });
+      else sock.setHandshake(MsgType.HostAttach, { gameId: routeGameId, hostToken: token });
     } else if (startQuizId) {
-      sock.send(MsgType.HostCreate, { quizId: startQuizId, ownerToken: getOwnerToken() });
+      sock.setHandshake(MsgType.HostCreate, { quizId: startQuizId, ownerToken: getOwnerToken() });
     } else {
       setError("No quiz to host.");
     }

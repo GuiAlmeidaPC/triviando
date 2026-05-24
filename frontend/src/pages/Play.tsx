@@ -54,7 +54,14 @@ export default function Play() {
         case MsgType.HelloPlayer: {
           const d = env.data as HelloPlayer;
           setMe(d);
-          
+
+          // Upgrade the reconnection handshake to PlayerAttach so any future
+          // reconnect re-attaches this player instead of joining as a new one.
+          sock.setHandshake(MsgType.PlayerAttach, {
+            gameId: d.gameId,
+            playerToken: d.playerToken,
+          });
+
           // Store active session metadata for resumption
           localStorage.setItem(
             "triviando.activePlayerSession",
@@ -132,9 +139,9 @@ export default function Play() {
       storedSession.nickname === nickname;
 
     if (isMatchingSession) {
-      sock.send(MsgType.PlayerAttach, { gameId: storedSession.gameId, playerToken: storedSession.playerToken });
+      sock.setHandshake(MsgType.PlayerAttach, { gameId: storedSession.gameId, playerToken: storedSession.playerToken });
     } else {
-      sock.send(MsgType.PlayerJoin, { pin, nickname });
+      sock.setHandshake(MsgType.PlayerJoin, { pin, nickname });
     }
 
     return () => sock.close();
