@@ -27,11 +27,18 @@ export class LiveSocket {
   private sleepDetectorTimer: ReturnType<typeof setInterval> | null = null;
   private lastTickTime = Date.now();
 
+  private handshake: { type: string; data: unknown } | null = null;
+
   constructor(private url: string) {
     if (typeof window !== "undefined") {
       window.addEventListener("visibilitychange", this.handleVisibilityChange);
       window.addEventListener("online", this.handleOnline);
     }
+  }
+
+  setHandshake(type: string, data: unknown) {
+    this.handshake = { type, data };
+    this.send(type, data);
   }
 
   connect() {
@@ -40,7 +47,19 @@ export class LiveSocket {
     this.ws.onopen = () => {
       this.opened = true;
       this.backoff = MIN_BACKOFF_MS;
-      for (const m of this.queue) this.ws!.send(m);
+
+      // Replay handshake first if it exists
+      if (this.handshake) {
+        const payload = JSON.stringify(this.handshake);
+        this.ws!.send(payload);
+      }
+
+      for (const m of this.queue) {
+        if (this.handshake && m === JSON.stringify(this.handshake)) {
+          continue;
+        }
+        this.ws!.send(m);
+      }
       this.queue = [];
       this.startHeartbeat();
       this.startSleepDetector();

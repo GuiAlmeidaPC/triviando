@@ -70,6 +70,9 @@ export default function Host() {
             })
           );
 
+          // Update handshake message to re-attach instead of recreate on reconnect
+          sock.setHandshake(MsgType.HostAttach, { gameId: d.gameId, hostToken: d.hostToken });
+
           // Update URL to match gameId so refresh/reconnect works
           if (!routeGameId || routeGameId !== d.gameId) {
             navigate(`/host/${d.gameId}`, { replace: true });
@@ -116,9 +119,9 @@ export default function Host() {
     if (routeGameId) {
       const token = localStorage.getItem(hostTokenKey(routeGameId));
       if (!token) setError("Missing host token for this game.");
-      else sock.send(MsgType.HostAttach, { gameId: routeGameId, hostToken: token });
+      else sock.setHandshake(MsgType.HostAttach, { gameId: routeGameId, hostToken: token });
     } else if (startQuizId) {
-      sock.send(MsgType.HostCreate, { quizId: startQuizId, ownerToken: getOwnerToken() });
+      sock.setHandshake(MsgType.HostCreate, { quizId: startQuizId, ownerToken: getOwnerToken() });
     } else {
       setError("No quiz to host.");
     }
