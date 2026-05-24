@@ -43,6 +43,46 @@
   }
 }
 
+@keyframes springIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  75% {
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-10px); }
+  30% { transform: translateX(9px); }
+  45% { transform: translateX(-7px); }
+  60% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+  90% { transform: translateX(1px); }
+}
+
+@keyframes flashGreen {
+  0% { background-color: rgba(34, 197, 94, 0); }
+  20% { background-color: rgba(34, 197, 94, 0.18); }
+  100% { background-color: rgba(34, 197, 94, 0); }
+}
+
+@keyframes flashRed {
+  0% { background-color: rgba(239, 68, 68, 0); }
+  20% { background-color: rgba(239, 68, 68, 0.18); }
+  100% { background-color: rgba(239, 68, 68, 0); }
+}
+
 @keyframes confettiFall {
   0% {
     opacity: 0;

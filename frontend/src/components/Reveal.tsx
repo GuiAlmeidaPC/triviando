@@ -182,7 +182,7 @@ function BarRow({
 }) {
   const animatedCount = useCountUp(count, COUNT_UP_MS, resetKey);
   const width = ready ? `${targetPct}%` : "0%";
-  const barHeight = compact ? "h-3" : "h-7";
+  const barHeight = compact ? "h-5" : "h-7";
 
   // Once revealed: lift the correct row, dim the wrong ones.
   const rowDim = revealed && !isCorrect;
@@ -219,7 +219,18 @@ function BarRow({
             </span>
           )}
           {isMine && (
-            <span className="text-slate-500 ml-2 text-xs">(you)</span>
+            <span
+              className={
+                "ml-2 px-1.5 py-0.5 rounded-md text-[10px] uppercase tracking-wider font-semibold " +
+                (revealed && isCorrect
+                  ? "bg-green-500/25 text-green-200 border border-green-400/50"
+                  : revealed
+                    ? "bg-red-500/20 text-red-200 border border-red-400/40"
+                    : "bg-slate-700/60 text-slate-200 border border-slate-600/60")
+              }
+            >
+              you
+            </span>
           )}
         </span>
         <span
@@ -251,7 +262,7 @@ function BarRow({
               : undefined,
           }}
         />
-        {revealed && isCorrect && !compact && <ConfettiBurst />}
+        {revealed && isCorrect && <ConfettiBurst compact={compact} />}
       </div>
     </div>
   );
@@ -262,21 +273,29 @@ function BarRow({
  * top-left of the correct bar with randomized direction, distance and
  * rotation supplied via CSS custom properties.
  */
-function ConfettiBurst() {
+function ConfettiBurst({ compact = false }: { compact?: boolean }) {
   const particles = useMemo(() => {
     const colors = ["#f87171", "#60a5fa", "#facc15", "#4ade80", "#f472b6", "#a78bfa"];
-    return Array.from({ length: 16 }, (_, i) => {
-      const angle = (-30 + Math.random() * 60) * (Math.PI / 180);
-      const distance = 60 + Math.random() * 80;
+    const count = compact ? 22 : 16;
+    const distanceBase = compact ? 70 : 60;
+    const distanceJitter = compact ? 90 : 80;
+    const yBase = compact ? 50 : 40;
+    return Array.from({ length: count }, (_, i) => {
+      // Compact view (player) bursts upward over the bar; host bursts to
+      // either side. Both look celebratory; the upward fan reads better on
+      // a thin mobile bar.
+      const angleDeg = compact ? -90 + (Math.random() * 140 - 70) : -30 + Math.random() * 60;
+      const angle = angleDeg * (Math.PI / 180);
+      const distance = distanceBase + Math.random() * distanceJitter;
       const x = Math.sin(angle) * distance;
-      const y = 40 + Math.random() * 60;
+      const y = compact ? -(yBase + Math.random() * 60) : yBase + Math.random() * 60;
       const r = (Math.random() * 2 - 1) * 360;
       const color = colors[i % colors.length];
-      const left = 4 + Math.random() * 40; // % across the bar's left region
-      const delay = Math.random() * 120;
+      const left = compact ? 10 + Math.random() * 80 : 4 + Math.random() * 40;
+      const delay = Math.random() * 140;
       return { x, y, r, color, left, delay, i };
     });
-  }, []);
+  }, [compact]);
   return (
     <div className="pointer-events-none absolute inset-0 overflow-visible">
       {particles.map((p) => (

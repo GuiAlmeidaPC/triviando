@@ -274,28 +274,54 @@ function PlayReveal({
   const wasCorrect = answered && myChoice === reveal.correctChoiceId;
   const correctChoice = question.choices.find((c) => c.id === reveal.correctChoiceId);
 
+  // Haptic feedback at the reveal beat — short buzz for wrong/timeout,
+  // celebratory pattern for correct. Navigator.vibrate is a no-op on
+  // desktop / unsupported browsers.
+  useEffect(() => {
+    if (!revealed) return;
+    if (typeof navigator === "undefined" || !navigator.vibrate) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    navigator.vibrate(wasCorrect ? [40, 50, 80] : answered ? [120] : []);
+  }, [revealed, wasCorrect, answered]);
+
   let headline: string;
   let headlineClass: string;
+  let headlineAnim: string;
   if (!answered) {
     headline = "Time's up";
     headlineClass = "text-slate-400";
+    headlineAnim = "fadeInUp 500ms ease-out both";
   } else if (wasCorrect) {
     headline = "Correct!";
-    headlineClass = "text-green-400 drop-shadow-[0_0_18px_rgba(74,222,128,0.45)]";
+    headlineClass = "text-green-300 drop-shadow-[0_0_22px_rgba(74,222,128,0.65)]";
+    headlineAnim = "springIn 620ms cubic-bezier(0.34, 1.56, 0.64, 1) both";
   } else {
     headline = "Wrong";
-    headlineClass = "text-red-400";
+    headlineClass = "text-red-400 drop-shadow-[0_0_14px_rgba(248,113,113,0.45)]";
+    headlineAnim = "shakeX 520ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both";
   }
 
   const placeholder = answered ? "Counting votes…" : "Time's up";
 
+  // Brief full-width tinted flash on reveal — green for correct, red for
+  // wrong — to give clear personal feedback at the moment of truth.
+  const flashAnim = revealed && answered
+    ? wasCorrect
+      ? "flashGreen 900ms ease-out both"
+      : "flashRed 900ms ease-out both"
+    : undefined;
+
   return (
-    <div className="space-y-5">
-      <div className="h-12 flex items-center justify-center">
+    <div
+      className="space-y-5 rounded-xl px-2 py-1"
+      style={{ animation: flashAnim }}
+    >
+      <div className="h-14 flex items-center justify-center">
         {revealed ? (
           <p
             key={`headline-${reveal.index}`}
-            className={`text-4xl font-bold text-center ${headlineClass} animate-[fadeInUp_500ms_ease-out_both]`}
+            className={`text-5xl font-extrabold text-center ${headlineClass}`}
+            style={{ animation: headlineAnim }}
           >
             {headline}
           </p>
@@ -307,7 +333,10 @@ function PlayReveal({
       {revealed && correctChoice && (
         <div
           key={`correct-${reveal.index}`}
-          className="bg-green-950/40 border-2 border-green-500 rounded-lg p-4 text-center animate-[fadeInUp_600ms_ease-out_120ms_both]"
+          className="bg-green-950/40 border-2 border-green-500 rounded-lg p-4 text-center shadow-[0_0_28px_rgba(74,222,128,0.25)]"
+          style={{
+            animation: "springIn 560ms cubic-bezier(0.34, 1.56, 0.64, 1) 140ms both",
+          }}
         >
           <p className="text-xs uppercase tracking-wider text-green-400 font-semibold mb-1">
             Correct answer
