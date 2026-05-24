@@ -255,10 +255,6 @@ export default function Host() {
               correctChoiceId={reveal.correctChoiceId}
               resetKey={reveal.index}
             />
-            <AnimatedLeaderboard
-              rows={reveal.leaderboard ?? []}
-              resetKey={`reveal-${reveal.index}`}
-            />
             <button
               onClick={() => send(MsgType.HostNext)}
               className="w-full bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-semibold py-3 rounded-lg transition"
