@@ -12,7 +12,7 @@ import {
   type GameFinished,
 } from "../lib/live";
 import { useCountdown } from "../lib/useCountdown";
-import { RevealBars, AnimatedLeaderboard } from "../components/Reveal";
+import { RevealBars, AnimatedLeaderboard, useRevealPhase } from "../components/Reveal";
 
 const choiceColors = [
   "bg-red-500 hover:bg-red-400 active:bg-red-600",
@@ -228,56 +228,13 @@ export default function Play() {
           </div>
         )}
 
-        {phase === "result" && reveal && question && (() => {
-          const answered = myChoice !== null;
-          const wasCorrect = answered && myChoice === reveal.correctChoiceId;
-          const correctChoice = question.choices.find((c) => c.id === reveal.correctChoiceId);
-          let headline: string;
-          let headlineClass: string;
-          if (!answered) {
-            headline = "Time's up";
-            headlineClass = "text-slate-400";
-          } else if (wasCorrect) {
-            headline = "Correct!";
-            headlineClass = "text-green-400 drop-shadow-[0_0_18px_rgba(74,222,128,0.45)]";
-          } else {
-            headline = "Wrong";
-            headlineClass = "text-red-400";
-          }
-          return (
-            <div className="space-y-5">
-              <p
-                key={`headline-${reveal.index}`}
-                className={`text-4xl font-bold text-center ${headlineClass} animate-[fadeInUp_500ms_ease-out_both]`}
-              >
-                {headline}
-              </p>
-
-              {correctChoice && (
-                <div
-                  key={`correct-${reveal.index}`}
-                  className="bg-green-950/40 border-2 border-green-500 rounded-lg p-4 text-center animate-[fadeInUp_600ms_ease-out_120ms_both]"
-                >
-                  <p className="text-xs uppercase tracking-wider text-green-400 font-semibold mb-1">
-                    Correct answer
-                  </p>
-                  <p className="text-xl font-semibold text-green-100">{correctChoice.text}</p>
-                </div>
-              )}
-
-              <RevealBars
-                choices={question.choices}
-                perChoiceCounts={reveal.perChoiceCounts}
-                correctChoiceId={reveal.correctChoiceId}
-                myChoice={myChoice}
-                resetKey={reveal.index}
-                compact
-              />
-
-              <p className="text-slate-500 text-sm text-center pt-2">Waiting for next question…</p>
-            </div>
-          );
-        })()}
+        {phase === "result" && reveal && question && (
+          <PlayReveal
+            reveal={reveal}
+            question={question}
+            myChoice={myChoice}
+          />
+        )}
 
         {phase === "finished" && finished && me && (
           <div className="space-y-6 text-center">
@@ -298,6 +255,77 @@ export default function Play() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function PlayReveal({
+  reveal,
+  question,
+  myChoice,
+}: {
+  reveal: QuestionReveal;
+  question: QuestionStart;
+  myChoice: string | null;
+}) {
+  const phase = useRevealPhase(reveal.index, question.choices.length);
+  const revealed = phase === "revealed";
+  const answered = myChoice !== null;
+  const wasCorrect = answered && myChoice === reveal.correctChoiceId;
+  const correctChoice = question.choices.find((c) => c.id === reveal.correctChoiceId);
+
+  let headline: string;
+  let headlineClass: string;
+  if (!answered) {
+    headline = "Time's up";
+    headlineClass = "text-slate-400";
+  } else if (wasCorrect) {
+    headline = "Correct!";
+    headlineClass = "text-green-400 drop-shadow-[0_0_18px_rgba(74,222,128,0.45)]";
+  } else {
+    headline = "Wrong";
+    headlineClass = "text-red-400";
+  }
+
+  const placeholder = answered ? "Counting votes…" : "Time's up";
+
+  return (
+    <div className="space-y-5">
+      <div className="h-12 flex items-center justify-center">
+        {revealed ? (
+          <p
+            key={`headline-${reveal.index}`}
+            className={`text-4xl font-bold text-center ${headlineClass} animate-[fadeInUp_500ms_ease-out_both]`}
+          >
+            {headline}
+          </p>
+        ) : (
+          <p className="text-slate-500 text-sm uppercase tracking-wider">{placeholder}</p>
+        )}
+      </div>
+
+      {revealed && correctChoice && (
+        <div
+          key={`correct-${reveal.index}`}
+          className="bg-green-950/40 border-2 border-green-500 rounded-lg p-4 text-center animate-[fadeInUp_600ms_ease-out_120ms_both]"
+        >
+          <p className="text-xs uppercase tracking-wider text-green-400 font-semibold mb-1">
+            Correct answer
+          </p>
+          <p className="text-xl font-semibold text-green-100">{correctChoice.text}</p>
+        </div>
+      )}
+
+      <RevealBars
+        choices={question.choices}
+        perChoiceCounts={reveal.perChoiceCounts}
+        correctChoiceId={reveal.correctChoiceId}
+        myChoice={myChoice}
+        resetKey={reveal.index}
+        compact
+      />
+
+      <p className="text-slate-500 text-sm text-center pt-2">Waiting for next question…</p>
     </div>
   );
 }

@@ -10,3 +10,50 @@
     transform: translateY(0);
   }
 }
+
+@keyframes correctPulse {
+  0%, 100% {
+    box-shadow: 0 0 28px rgba(74, 222, 128, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 44px rgba(74, 222, 128, 0.85);
+  }
+}
+
+@keyframes badgePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.18) rotate(4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes confettiFall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) rotate(0deg) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-x, 0), var(--confetti-y, 80px), 0)
+      rotate(var(--confetti-r, 180deg)) scale(1);
+  }
+}

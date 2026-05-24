@@ -7,15 +7,62 @@ const choiceBarColors = [
   "bg-green-500",
 ];
 
+// Reveal animation timing. Tweak here to retune the whole arc.
+const BAR_GROW_MS = 2200;
+const BAR_STAGGER_MS = 180;
+const COUNT_UP_MS = 2000;
+// After the last bar finishes growing we wait a beat, then reveal the answer.
+const SUSPENSE_HOLD_MS = 700;
+
+type Phase = "setup" | "voting" | "suspense" | "revealed";
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+}
+
+/**
+ * Drives the reveal screen through its beats: bars grow first (voting),
+ * a short pause lets the eye settle (suspense), then the correct answer is
+ * highlighted (revealed). Restarts whenever resetKey changes.
+ *
+ * Exported so pages (Play.tsx) can sync personal-feedback elements
+ * (the "Correct!" headline, the "Correct answer is X" card) with the same
+ * beat as the bar highlight.
+ */
+export function useRevealPhase(resetKey: unknown, choiceCount = 4): Phase {
+  const [phase, setPhase] = useState<Phase>("setup");
+  useEffect(() => {
+    if (prefersReducedMotion()) {
+      setPhase("revealed");
+      return;
+    }
+    setPhase("setup");
+    const lastBarStart = Math.max(0, (choiceCount - 1) * BAR_STAGGER_MS);
+    const votingEnd = lastBarStart + BAR_GROW_MS;
+    const revealAt = votingEnd + SUSPENSE_HOLD_MS;
+    const timers: number[] = [];
+    timers.push(window.setTimeout(() => setPhase("voting"), 60));
+    timers.push(window.setTimeout(() => setPhase("suspense"), votingEnd));
+    timers.push(window.setTimeout(() => setPhase("revealed"), revealAt));
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [resetKey, choiceCount]);
+  return phase;
+}
+
 /**
  * Animate a number from 0 → target over `duration` ms with ease-out cubic.
  * Restarts whenever the resetKey changes.
  */
-function useCountUp(target: number, duration = 1200, resetKey: unknown = target) {
+function useCountUp(target: number, duration = COUNT_UP_MS, resetKey: unknown = target) {
   const [value, setValue] = useState(0);
   useEffect(() => {
     setValue(0);
     if (target === 0) return;
+    if (prefersReducedMotion()) {
+      setValue(target);
+      return;
+    }
     let raf = 0;
     const start = performance.now();
     const tick = (now: number) => {
@@ -48,8 +95,8 @@ export interface RevealBarsProps {
 }
 
 /**
- * Horizontal bar chart where bars start at width 0 and animate to their
- * final share, with staggered entry. Vote counts tick up alongside the bars.
+ * Horizontal bar chart driven by useRevealPhase. Bars grow first; the
+ * correct-answer treatment only appears once we transition to "revealed".
  */
 export function RevealBars({
   choices,
@@ -68,13 +115,9 @@ export function RevealBars({
     [choices, perChoiceCounts]
   );
 
-  // Trigger width animation on mount / reset by toggling a "ready" flag.
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    setReady(false);
-    const id = window.setTimeout(() => setReady(true), 60);
-    return () => window.clearTimeout(id);
-  }, [resetKey]);
+  const phase = useRevealPhase(resetKey, choices.length);
+  const ready = phase !== "setup";
+  const revealed = phase === "revealed";
 
   return (
     <div className={compact ? "space-y-2" : "space-y-3"}>
@@ -86,8 +129,7 @@ export function RevealBars({
       )}
       {choices.map((c, i) => {
         const count = perChoiceCounts[c.id] ?? 0;
-        // Bars scale relative to the leading choice so the winner reaches ~100%
-        // — visually more dramatic than scaling by share of total votes.
+        // Scale bars relative to the leader so the winner reaches ~100%.
         const targetPct = maxCount > 0 ? (count / maxCount) * 100 : 0;
         const isCorrect = c.id === correctChoiceId;
         const isMine = myChoice === c.id;
@@ -101,8 +143,9 @@ export function RevealBars({
             colorClass={color}
             isCorrect={isCorrect}
             isMine={isMine}
-            staggerMs={i * 140}
+            staggerMs={i * BAR_STAGGER_MS}
             ready={ready}
+            revealed={revealed}
             resetKey={`${resetKey}:${c.id}`}
             compact={compact}
           />
@@ -121,6 +164,7 @@ function BarRow({
   isMine,
   staggerMs,
   ready,
+  revealed,
   resetKey,
   compact,
 }: {
@@ -132,24 +176,48 @@ function BarRow({
   isMine: boolean;
   staggerMs: number;
   ready: boolean;
+  revealed: boolean;
   resetKey: string;
   compact: boolean;
 }) {
-  const animatedCount = useCountUp(count, 1400, resetKey);
+  const animatedCount = useCountUp(count, COUNT_UP_MS, resetKey);
   const width = ready ? `${targetPct}%` : "0%";
-  const barHeight = compact ? "h-3" : "h-6";
+  const barHeight = compact ? "h-3" : "h-7";
+
+  // Once revealed: lift the correct row, dim the wrong ones.
+  const rowDim = revealed && !isCorrect;
+  const rowLift = revealed && isCorrect;
+
   return (
-    <div className="space-y-1">
+    <div
+      className="space-y-1"
+      style={{
+        opacity: rowDim ? 0.45 : 1,
+        transform: rowLift ? "scale(1.02)" : "scale(1)",
+        filter: rowDim ? "saturate(0.55)" : "saturate(1)",
+        transformOrigin: "left center",
+        transition:
+          "opacity 600ms ease-out, transform 600ms cubic-bezier(0.22, 1, 0.36, 1), filter 600ms ease-out",
+      }}
+    >
       <div className="flex items-center justify-between gap-3 text-sm">
         <span
           className={
-            (isCorrect
+            (revealed && isCorrect
               ? "text-green-300 font-semibold"
-              : "text-slate-300") + " truncate"
+              : "text-slate-300") + " truncate flex items-center"
           }
         >
           {label}
-          {isCorrect && <span className="ml-1.5">✓</span>}
+          {revealed && isCorrect && (
+            <span
+              className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-slate-950 text-xs font-bold"
+              style={{ animation: "badgePop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both" }}
+              aria-label="Correct answer"
+            >
+              ✓
+            </span>
+          )}
           {isMine && (
             <span className="text-slate-500 ml-2 text-xs">(you)</span>
           )}
@@ -157,25 +225,75 @@ function BarRow({
         <span
           className={
             "font-mono tabular-nums " +
-            (isCorrect ? "text-green-200" : "text-slate-400")
+            (revealed && isCorrect ? "text-green-200" : "text-slate-400")
           }
         >
           {animatedCount}
         </span>
       </div>
       <div
-        className={`${barHeight} bg-slate-900/80 rounded-full overflow-hidden border border-slate-800/60`}
+        className={`relative ${barHeight} bg-slate-900/80 rounded-full overflow-visible border border-slate-800/60`}
       >
         <div
           className={`${colorClass} h-full rounded-full ${
-            isCorrect ? "shadow-[0_0_18px_rgba(74,222,128,0.45)]" : "opacity-60"
+            revealed && isCorrect
+              ? "ring-2 ring-green-300/80"
+              : ""
           }`}
           style={{
             width,
-            transition: `width 1400ms cubic-bezier(0.22, 1, 0.36, 1) ${staggerMs}ms`,
+            transition: `width ${BAR_GROW_MS}ms cubic-bezier(0.22, 1, 0.36, 1) ${staggerMs}ms, box-shadow 600ms ease-out`,
+            boxShadow: revealed && isCorrect
+              ? "0 0 32px rgba(74, 222, 128, 0.75)"
+              : "none",
+            animation: revealed && isCorrect
+              ? "correctPulse 1800ms ease-in-out 600ms infinite"
+              : undefined,
           }}
         />
+        {revealed && isCorrect && !compact && <ConfettiBurst />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Lightweight CSS confetti — no deps. ~16 particles fan out from the
+ * top-left of the correct bar with randomized direction, distance and
+ * rotation supplied via CSS custom properties.
+ */
+function ConfettiBurst() {
+  const particles = useMemo(() => {
+    const colors = ["#f87171", "#60a5fa", "#facc15", "#4ade80", "#f472b6", "#a78bfa"];
+    return Array.from({ length: 16 }, (_, i) => {
+      const angle = (-30 + Math.random() * 60) * (Math.PI / 180);
+      const distance = 60 + Math.random() * 80;
+      const x = Math.sin(angle) * distance;
+      const y = 40 + Math.random() * 60;
+      const r = (Math.random() * 2 - 1) * 360;
+      const color = colors[i % colors.length];
+      const left = 4 + Math.random() * 40; // % across the bar's left region
+      const delay = Math.random() * 120;
+      return { x, y, r, color, left, delay, i };
+    });
+  }, []);
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-visible">
+      {particles.map((p) => (
+        <span
+          key={p.i}
+          aria-hidden
+          className="absolute top-0 w-1.5 h-2.5 rounded-sm"
+          style={{
+            left: `${p.left}%`,
+            backgroundColor: p.color,
+            ["--confetti-x" as string]: `${p.x}px`,
+            ["--confetti-y" as string]: `${p.y}px`,
+            ["--confetti-r" as string]: `${p.r}deg`,
+            animation: `confettiFall 1400ms cubic-bezier(0.22, 1, 0.36, 1) ${p.delay}ms both`,
+          }}
+        />
+      ))}
     </div>
   );
 }
