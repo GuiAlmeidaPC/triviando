@@ -68,9 +68,6 @@ export default function Play() {
             })
           );
 
-          // Update handshake message to re-attach instead of re-join on reconnect
-          sock.setHandshake(MsgType.PlayerAttach, { gameId: d.gameId, playerToken: d.playerToken });
-
           // Restore phase from state
           if (d.state === "question_active") {
             setPhase("active");
@@ -135,9 +132,9 @@ export default function Play() {
       storedSession.nickname === nickname;
 
     if (isMatchingSession) {
-      sock.setHandshake(MsgType.PlayerAttach, { gameId: storedSession.gameId, playerToken: storedSession.playerToken });
+      sock.send(MsgType.PlayerAttach, { gameId: storedSession.gameId, playerToken: storedSession.playerToken });
     } else {
-      sock.setHandshake(MsgType.PlayerJoin, { pin, nickname });
+      sock.send(MsgType.PlayerJoin, { pin, nickname });
     }
 
     return () => sock.close();
