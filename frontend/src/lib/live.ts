@@ -19,6 +19,8 @@ export const MsgType = {
   QuestionReveal: "question.reveal",
   AnswerAck: "answer.ack",
   GameFinished: "game.finished",
+  Ping: "ping",
+  Pong: "pong",
 } as const;
 
 export interface PlayerInfo {

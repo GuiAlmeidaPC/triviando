@@ -270,6 +270,10 @@ func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope, current 
 		}
 		return nil, h.Hub.Answer(current, role.PlayerID, msg.ChoiceID)
 
+	case TypePing:
+		c.trySend(encode(TypePong, nil))
+		return nil, nil
+
 	default:
 		return nil, errors.New("unknown message type")
 	}

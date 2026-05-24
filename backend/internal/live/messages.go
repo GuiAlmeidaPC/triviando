@@ -135,4 +135,6 @@ const (
 	TypeQuestionReveal = "question.reveal"
 	TypeAnswerAck      = "answer.ack"
 	TypeGameFinished   = "game.finished"
+	TypePing           = "ping"
+	TypePong           = "pong"
 )

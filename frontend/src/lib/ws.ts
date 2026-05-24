@@ -20,8 +20,14 @@ export class LiveSocket {
   private closedByUser = false;
   private backoff = MIN_BACKOFF_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private pongTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private url: string) {}
+  constructor(private url: string) {
+    if (typeof window !== "undefined") {
+      window.addEventListener("visibilitychange", this.handleVisibilityChange);
+    }
+  }
 
   connect() {
     if (this.ws || this.closedByUser) return;
@@ -31,6 +37,7 @@ export class LiveSocket {
       this.backoff = MIN_BACKOFF_MS;
       for (const m of this.queue) this.ws!.send(m);
       this.queue = [];
+      this.startHeartbeat();
     };
     this.ws.onmessage = (e) => {
       let env: Envelope;
@@ -38,6 +45,10 @@ export class LiveSocket {
         env = JSON.parse(e.data);
       } catch (err) {
         console.warn("ws: bad envelope", err);
+        return;
+      }
+      if (env.type === "pong") {
+        this.handlePong();
         return;
       }
       this.listeners.forEach((l) => {
@@ -51,11 +62,67 @@ export class LiveSocket {
     this.ws.onclose = () => {
       this.opened = false;
       this.ws = null;
+      this.stopHeartbeat();
       if (!this.closedByUser) this.scheduleReconnect();
     };
     this.ws.onerror = () => {
       // Browser will fire onclose right after — let that path handle reconnect.
     };
+  }
+
+  private handleVisibilityChange = () => {
+    if (this.closedByUser) return;
+    if (document.visibilityState === "visible") {
+      if (!this.ws || !this.opened) {
+        console.log("ws: visible and disconnected, reconnecting immediately");
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
+        this.connect();
+      } else {
+        console.log("ws: visible and active, verifying connection via ping");
+        this.sendPing();
+      }
+    }
+  };
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      this.sendPing();
+    }, 10000); // Send ping every 10 seconds
+  }
+
+  private sendPing() {
+    if (!this.opened || !this.ws) return;
+    
+    // If a pong timeout is already active, do not overwrite it
+    if (this.pongTimeoutTimer) return;
+
+    this.send("ping", {});
+    this.pongTimeoutTimer = setTimeout(() => {
+      console.warn("ws: heartbeat timeout (no pong), closing connection");
+      this.ws?.close();
+    }, 5000); // 5 seconds grace period for pong response
+  }
+
+  private handlePong() {
+    if (this.pongTimeoutTimer) {
+      clearTimeout(this.pongTimeoutTimer);
+      this.pongTimeoutTimer = null;
+    }
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+    if (this.pongTimeoutTimer) {
+      clearTimeout(this.pongTimeoutTimer);
+      this.pongTimeoutTimer = null;
+    }
   }
 
   private scheduleReconnect() {
@@ -84,10 +151,14 @@ export class LiveSocket {
 
   close() {
     this.closedByUser = true;
+    if (typeof window !== "undefined") {
+      window.removeEventListener("visibilitychange", this.handleVisibilityChange);
+    }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.stopHeartbeat();
     this.ws?.close();
     this.ws = null;
   }
