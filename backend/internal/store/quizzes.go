@@ -126,6 +126,17 @@ func (s *Store) GetQuiz(ctx context.Context, id string) (*Quiz, error) {
 	return q, cRows.Err()
 }
 
+func (s *Store) GetQuizOwnedBy(ctx context.Context, id, ownerToken string) (*Quiz, error) {
+	q, err := s.GetQuiz(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if q.OwnerToken != ownerToken {
+		return nil, ErrNotFound
+	}
+	return q, nil
+}
+
 // ListQuizzesByOwner returns quiz summaries (no questions) for an owner.
 func (s *Store) ListQuizzesByOwner(ctx context.Context, ownerToken string) ([]Quiz, error) {
 	rows, err := s.DB.QueryContext(ctx,

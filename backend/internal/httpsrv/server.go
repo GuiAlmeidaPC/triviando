@@ -30,8 +30,10 @@ func New(st *store.Store, hub *live.Hub) http.Handler {
 	r.Get("/healthz", healthz)
 
 	qh := &quizHandler{store: st}
+	hh := &historyHandler{store: st}
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/ping", ping)
+		r.Get("/history", hh.list)
 		r.Route("/quizzes", func(r chi.Router) {
 			r.Get("/", qh.list)
 			r.Post("/", qh.create)
@@ -75,6 +77,10 @@ func allowedOrigins() []string {
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
+		h.Set("Content-Security-Policy", "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+		h.Set("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()")
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Cross-Origin-Resource-Policy", "same-origin")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		h.Set("X-Frame-Options", "DENY")

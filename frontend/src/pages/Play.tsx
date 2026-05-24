@@ -12,6 +12,7 @@ import {
   type GameFinished,
 } from "../lib/live";
 import { useCountdown } from "../lib/useCountdown";
+import { clearPlayerSession, loadPlayerSession, savePlayerSession } from "../lib/session";
 import { RevealBars, AnimatedLeaderboard, useRevealPhase } from "../components/Reveal";
 
 const choiceColors = [
@@ -63,17 +64,14 @@ export default function Play() {
           });
 
           // Store active session metadata for resumption
-          localStorage.setItem(
-            "triviando.activePlayerSession",
-            JSON.stringify({
-              gameId: d.gameId,
-              pin,
-              nickname: d.nickname,
-              playerId: d.playerId,
-              playerToken: d.playerToken,
-              quizTitle: d.quizTitle,
-            })
-          );
+          savePlayerSession({
+            gameId: d.gameId,
+            pin,
+            nickname: d.nickname,
+            playerId: d.playerId,
+            playerToken: d.playerToken,
+            quizTitle: d.quizTitle,
+          });
 
           // Restore phase from state
           if (d.state === "question_active") {
@@ -106,7 +104,7 @@ export default function Play() {
         case MsgType.GameFinished:
           setFinished(env.data as GameFinished);
           setPhase("finished");
-          localStorage.removeItem("triviando.activePlayerSession");
+          clearPlayerSession();
           break;
         case MsgType.Error: {
           const msg = (env.data as ErrorMsg).message;
@@ -114,7 +112,7 @@ export default function Play() {
           // log them but don't surface or kill the session.
           if (phaseRef.current === "joining") {
             setError(msg);
-            localStorage.removeItem("triviando.activePlayerSession");
+            clearPlayerSession();
           } else {
             console.warn("server error (ignored):", msg);
           }
@@ -124,15 +122,7 @@ export default function Play() {
     });
     sock.connect();
 
-    const rawSession = localStorage.getItem("triviando.activePlayerSession");
-    let storedSession: any = null;
-    if (rawSession) {
-      try {
-        storedSession = JSON.parse(rawSession);
-      } catch (e) {
-        // ignore
-      }
-    }
+    const storedSession = loadPlayerSession();
 
     const isMatchingSession = storedSession &&
       storedSession.pin === pin &&

@@ -57,6 +57,25 @@ CREATE TABLE IF NOT EXISTS choices (
     is_correct  INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_choices_question ON choices(question_id, position);
+
+CREATE TABLE IF NOT EXISTS finished_games (
+    game_id       TEXT PRIMARY KEY,
+    quiz_id       TEXT NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+    owner_token   TEXT NOT NULL,
+    quiz_title    TEXT NOT NULL,
+    completed_at  INTEGER NOT NULL,
+    player_count  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_finished_games_owner_completed
+    ON finished_games(owner_token, completed_at DESC);
+
+CREATE TABLE IF NOT EXISTS finished_game_rows (
+    game_id   TEXT NOT NULL REFERENCES finished_games(game_id) ON DELETE CASCADE,
+    rank      INTEGER NOT NULL,
+    nickname  TEXT NOT NULL,
+    score     INTEGER NOT NULL,
+    PRIMARY KEY (game_id, rank)
+);
 `
 
 func (s *Store) migrate() error {

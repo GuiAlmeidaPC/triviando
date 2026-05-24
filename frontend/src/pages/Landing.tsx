@@ -1,35 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { clearHostSession, clearPlayerSession, loadHostSession, loadPlayerSession, type HostSession, type PlayerSession } from "../lib/session";
 
 export default function Landing() {
-  const [activeSession, setActiveSession] = useState<{ gameId: string; pin: string; quizTitle: string } | null>(null);
-  const [playerSession, setPlayerSession] = useState<{
-    gameId: string;
-    pin: string;
-    nickname: string;
-    playerId: string;
-    playerToken: string;
-    quizTitle: string;
-  } | null>(null);
+  const [activeSession, setActiveSession] = useState<HostSession | null>(null);
+  const [playerSession, setPlayerSession] = useState<PlayerSession | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem("triviando.activeHostSession");
-    if (raw) {
-      try {
-        setActiveSession(JSON.parse(raw));
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    const rawPlayer = localStorage.getItem("triviando.activePlayerSession");
-    if (rawPlayer) {
-      try {
-        setPlayerSession(JSON.parse(rawPlayer));
-      } catch (e) {
-        // ignore
-      }
-    }
+    setActiveSession(loadHostSession());
+    setPlayerSession(loadPlayerSession());
   }, []);
 
   return (
@@ -49,7 +28,7 @@ export default function Landing() {
               </span>
               <button 
                 onClick={() => {
-                  localStorage.removeItem("triviando.activeHostSession");
+                  clearHostSession();
                   setActiveSession(null);
                 }}
                 className="text-slate-500 hover:text-slate-300 text-xs transition cursor-pointer"
@@ -79,7 +58,7 @@ export default function Landing() {
               </span>
               <button 
                 onClick={() => {
-                  localStorage.removeItem("triviando.activePlayerSession");
+                  clearPlayerSession();
                   setPlayerSession(null);
                 }}
                 className="text-slate-500 hover:text-slate-300 text-xs transition cursor-pointer"

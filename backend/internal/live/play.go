@@ -1,7 +1,9 @@
 package live
 
 import (
+	"context"
 	"errors"
+	"log"
 	"math"
 	"sort"
 	"time"
@@ -10,17 +12,19 @@ import (
 )
 
 var (
-	ErrNotInLobby     = errors.New("game is not in lobby")
-	ErrNoQuestions    = errors.New("quiz has no questions")
-	ErrNotActive      = errors.New("no active question")
-	ErrNotInReveal    = errors.New("game is not in reveal state")
+	ErrNotInLobby      = errors.New("game is not in lobby")
+	ErrNoQuestions     = errors.New("quiz has no questions")
+	ErrNotActive       = errors.New("no active question")
+	ErrNotInReveal     = errors.New("game is not in reveal state")
 	ErrAlreadyAnswered = errors.New("already answered")
-	ErrUnknownPlayer  = errors.New("unknown player")
-	ErrUnknownChoice  = errors.New("unknown choice")
+	ErrUnknownPlayer   = errors.New("unknown player")
+	ErrUnknownChoice   = errors.New("unknown choice")
 )
 
 // Score computes points for an answer per SPEC §7:
-//   points = base * (0.5 + 0.5 * (timeRemaining / timeLimit))
+//
+//	points = base * (0.5 + 0.5 * (timeRemaining / timeLimit))
+//
 // Wrong or unanswered = 0. Result is rounded.
 func Score(base, timeLimitSec, answerAtMS, questionStartMS int64, correct bool) int {
 	if !correct {
@@ -125,21 +129,26 @@ func (h *Hub) Reveal(g *Game) error {
 
 // Next advances from reveal to the next question, or to finished.
 func (h *Hub) Next(g *Game) error {
+	var finished *store.FinishedGameRecord
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	if g.State != StateQuestionReveal {
+		g.mu.Unlock()
 		return ErrNotInReveal
 	}
 	if g.currentIdx+1 >= len(g.Quiz.Questions) {
 		g.State = StateFinished
-		h.broadcastLocked(g, TypeGameFinished, GameFinishedMsg{
-			Leaderboard: leaderboardLocked(g),
-		})
+		lb := leaderboardLocked(g)
+		h.broadcastLocked(g, TypeGameFinished, GameFinishedMsg{Leaderboard: lb})
+		finished = finishedGameRecordLocked(g, lb)
 		h.scheduleEvictionLocked(g)
+		g.mu.Unlock()
+		h.persistFinishedGame(finished)
 		return nil
 	}
 	g.lastActivity = time.Now()
-	return h.beginQuestionLocked(g)
+	err := h.beginQuestionLocked(g)
+	g.mu.Unlock()
+	return err
 }
 
 // --- internals (must be called with g.mu held) ------------------------------
@@ -269,4 +278,34 @@ func leaderboardLocked(g *Game) []LeaderboardRow {
 		return rows[i].Nickname < rows[j].Nickname
 	})
 	return rows
+}
+
+func finishedGameRecordLocked(g *Game, rows []LeaderboardRow) *store.FinishedGameRecord {
+	lb := make([]store.FinishedLeaderboardRow, len(rows))
+	for i, row := range rows {
+		lb[i] = store.FinishedLeaderboardRow{
+			Rank:     i + 1,
+			Nickname: row.Nickname,
+			Score:    row.Score,
+		}
+	}
+	return &store.FinishedGameRecord{
+		GameID:      g.ID,
+		QuizID:      g.Quiz.ID,
+		OwnerToken:  g.Quiz.OwnerToken,
+		QuizTitle:   g.Quiz.Title,
+		CompletedAt: time.Now().UnixMilli(),
+		Leaderboard: lb,
+	}
+}
+
+func (h *Hub) persistFinishedGame(rec *store.FinishedGameRecord) {
+	if rec == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := h.store.RecordFinishedGame(ctx, *rec); err != nil {
+		log.Printf("record finished game %s: %v", rec.GameID, err)
+	}
 }

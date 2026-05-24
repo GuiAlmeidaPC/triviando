@@ -100,6 +100,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func buildHelloHost(g *Game) HelloHostMsg {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	return buildHelloHostLocked(g)
+}
+
+func buildHelloHostLocked(g *Game) HelloHostMsg {
 	return HelloHostMsg{
 		GameID:    g.ID,
 		PIN:       g.PIN,
@@ -107,6 +111,68 @@ func buildHelloHost(g *Game) HelloHostMsg {
 		QuizTitle: g.Quiz.Title,
 		Players:   g.playerInfos(),
 		State:     string(g.State),
+	}
+}
+
+func questionStartLocked(g *Game) QuestionStartMsg {
+	q := &g.Quiz.Questions[g.currentIdx]
+	choices := make([]QuestionChoiceMsg, len(q.Choices))
+	for i, ch := range q.Choices {
+		choices[i] = QuestionChoiceMsg{ID: ch.ID, Text: ch.Text}
+	}
+	return QuestionStartMsg{
+		Index:            g.currentIdx,
+		Total:            len(g.Quiz.Questions),
+		Prompt:           q.Prompt,
+		Choices:          choices,
+		TimeLimitSeconds: q.TimeLimitSeconds,
+		StartedAt:        g.questionStartMS,
+		EndsAt:           g.questionEndMS,
+	}
+}
+
+func hostRevealLocked(g *Game) QuestionRevealMsg {
+	pr := PlayerRevealLocked(g)
+	return QuestionRevealMsg{
+		Index:           pr.Index,
+		CorrectChoiceID: pr.CorrectChoiceID,
+		PerChoiceCounts: pr.PerChoiceCounts,
+		Leaderboard:     leaderboardLocked(g),
+		IsLast:          pr.IsLast,
+	}
+}
+
+func replayHostStateLocked(c *conn, g *Game) {
+	switch g.State {
+	case StateQuestionActive:
+		c.trySend(encode(TypeQuestionStart, questionStartLocked(g)))
+	case StateQuestionReveal:
+		c.trySend(encode(TypeQuestionStart, questionStartLocked(g)))
+		c.trySend(encode(TypeQuestionReveal, hostRevealLocked(g)))
+	case StateFinished:
+		c.trySend(encode(TypeGameFinished, GameFinishedMsg{
+			Leaderboard: leaderboardLocked(g),
+		}))
+	}
+}
+
+func replayPlayerStateLocked(c *conn, g *Game, p *player) {
+	switch g.State {
+	case StateQuestionActive, StateQuestionReveal:
+		c.trySend(encode(TypeQuestionStart, questionStartLocked(g)))
+		if _, answered := g.currentAnswers[p.ID]; answered {
+			c.trySend(encode(TypeAnswerAck, AnswerAckMsg{
+				QuestionIndex: g.currentIdx,
+				Accepted:      true,
+			}))
+		}
+		if g.State == StateQuestionReveal {
+			c.trySend(encode(TypeQuestionReveal, PlayerRevealLocked(g)))
+		}
+	case StateFinished:
+		c.trySend(encode(TypeGameFinished, GameFinishedMsg{
+			Leaderboard: leaderboardLocked(g),
+		}))
 	}
 }
 
@@ -142,7 +208,10 @@ func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope, current 
 		if err := h.Hub.AttachHost(g, c, msg.HostToken); err != nil {
 			return nil, err
 		}
-		c.trySend(encode(TypeHelloHost, buildHelloHost(g)))
+		g.mu.Lock()
+		c.trySend(encode(TypeHelloHost, buildHelloHostLocked(g)))
+		replayHostStateLocked(c, g)
+		g.mu.Unlock()
 		role.IsHost = true
 		return g, nil
 
@@ -208,36 +277,7 @@ func (h *Handler) dispatch(ctx context.Context, c *conn, env *Envelope, current 
 		}
 		c.trySend(encode(TypeHelloPlayer, hello))
 
-		// State restoration: replay enough messages so the client lands in the
-		// right phase. Active → send question + answer ack if applicable.
-		// Reveal → send question (so the UI has the choices) then the reveal.
-		if g.State == StateQuestionActive || g.State == StateQuestionReveal {
-			q := &g.Quiz.Questions[g.currentIdx]
-			choices := make([]QuestionChoiceMsg, len(q.Choices))
-			for i, ch := range q.Choices {
-				choices[i] = QuestionChoiceMsg{ID: ch.ID, Text: ch.Text}
-			}
-			c.trySend(encode(TypeQuestionStart, QuestionStartMsg{
-				Index:            g.currentIdx,
-				Total:            len(g.Quiz.Questions),
-				Prompt:           q.Prompt,
-				Choices:          choices,
-				TimeLimitSeconds: q.TimeLimitSeconds,
-				StartedAt:        g.questionStartMS,
-				EndsAt:           g.questionEndMS,
-			}))
-
-			if _, answered := g.currentAnswers[p.ID]; answered {
-				c.trySend(encode(TypeAnswerAck, AnswerAckMsg{
-					QuestionIndex: g.currentIdx,
-					Accepted:      true,
-				}))
-			}
-
-			if g.State == StateQuestionReveal {
-				c.trySend(encode(TypeQuestionReveal, PlayerRevealLocked(g)))
-			}
-		}
+		replayPlayerStateLocked(c, g, p)
 		g.mu.Unlock()
 		role.PlayerID = p.ID
 		return g, nil

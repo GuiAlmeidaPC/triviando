@@ -24,6 +24,21 @@ export interface Quiz {
   questions: Question[] | null;
 }
 
+export interface FinishedLeaderboardRow {
+  rank: number;
+  nickname: string;
+  score: number;
+}
+
+export interface FinishedGame {
+  gameId: string;
+  quizId: string;
+  quizTitle: string;
+  completedAt: number;
+  playerCount: number;
+  leaderboard: FinishedLeaderboardRow[];
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
@@ -47,6 +62,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   listQuizzes: () => request<Quiz[]>("GET", "/api/quizzes"),
+  listHistory: () => request<FinishedGame[]>("GET", "/api/history"),
   createQuiz: (title: string) => request<Quiz>("POST", "/api/quizzes", { title }),
   getQuiz: (id: string) => request<Quiz>("GET", `/api/quizzes/${id}`),
   updateQuiz: (id: string, title: string, questions: Question[]) =>

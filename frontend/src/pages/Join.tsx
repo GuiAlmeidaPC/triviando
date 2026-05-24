@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { NICKNAME_MAX_LEN } from "../lib/live";
+import { clearPlayerSession, loadPlayerSession } from "../lib/session";
 
 export default function Join() {
   const [searchParams] = useSearchParams();
@@ -8,24 +9,10 @@ export default function Join() {
   const [nickname, setNickname] = useState("");
   const nav = useNavigate();
 
-  const [playerSession, setPlayerSession] = useState<{
-    gameId: string;
-    pin: string;
-    nickname: string;
-    playerId: string;
-    playerToken: string;
-    quizTitle: string;
-  } | null>(null);
+  const [playerSession, setPlayerSession] = useState(loadPlayerSession());
 
   useEffect(() => {
-    const rawPlayer = localStorage.getItem("triviando.activePlayerSession");
-    if (rawPlayer) {
-      try {
-        setPlayerSession(JSON.parse(rawPlayer));
-      } catch (e) {
-        // ignore
-      }
-    }
+    setPlayerSession(loadPlayerSession());
   }, []);
 
   function onSubmit(e: React.FormEvent) {
@@ -53,7 +40,7 @@ export default function Join() {
               <button 
                 type="button"
                 onClick={() => {
-                  localStorage.removeItem("triviando.activePlayerSession");
+                  clearPlayerSession();
                   setPlayerSession(null);
                 }}
                 className="text-slate-500 hover:text-slate-300 text-xs transition cursor-pointer"

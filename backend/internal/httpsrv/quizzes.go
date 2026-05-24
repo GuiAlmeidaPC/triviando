@@ -19,6 +19,7 @@ const (
 	maxPromptLen    = 1000
 	maxChoiceLen    = 500
 	maxQuestions    = 200
+	minChoicesPerQ  = 2
 	maxChoicesPerQ  = 10
 	maxTimeLimitSec = 600
 	maxPointsPerQ   = 1_000_000
@@ -96,8 +97,13 @@ func (h *quizHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *quizHandler) get(w http.ResponseWriter, r *http.Request) {
+	owner := ownerFrom(r)
+	if owner == "" {
+		writeErr(w, http.StatusUnauthorized, "missing X-Owner-Token")
+		return
+	}
 	id := chi.URLParam(r, "id")
-	q, err := h.store.GetQuiz(r.Context(), id)
+	q, err := h.store.GetQuizOwnedBy(r.Context(), id, owner)
 	if errors.Is(err, store.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "quiz not found")
 		return
@@ -123,6 +129,10 @@ func validateUpdate(req *updateQuizReq) string {
 	}
 	for i := range req.Questions {
 		q := &req.Questions[i]
+		q.Prompt = strings.TrimSpace(q.Prompt)
+		if q.Prompt == "" {
+			return "question prompt is required"
+		}
 		if utf8.RuneCountInString(q.Prompt) > maxPromptLen {
 			return "question prompt too long"
 		}
@@ -132,13 +142,27 @@ func validateUpdate(req *updateQuizReq) string {
 		if q.Points < 0 || q.Points > maxPointsPerQ {
 			return "invalid points"
 		}
+		if len(q.Choices) < minChoicesPerQ {
+			return "question must have at least 2 choices"
+		}
 		if len(q.Choices) > maxChoicesPerQ {
 			return "too many choices"
 		}
+		correctCount := 0
 		for j := range q.Choices {
+			q.Choices[j].Text = strings.TrimSpace(q.Choices[j].Text)
+			if q.Choices[j].Text == "" {
+				return "choice text is required"
+			}
 			if utf8.RuneCountInString(q.Choices[j].Text) > maxChoiceLen {
 				return "choice text too long"
 			}
+			if q.Choices[j].IsCorrect {
+				correctCount++
+			}
+		}
+		if correctCount != 1 {
+			return "question must have exactly 1 correct choice"
 		}
 	}
 	return ""

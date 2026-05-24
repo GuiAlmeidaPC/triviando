@@ -14,9 +14,8 @@ import {
 import { useCountdown } from "../lib/useCountdown";
 import { QRCodeSVG } from "qrcode.react";
 import { getOwnerToken } from "../lib/owner";
+import { clearHostSession, loadHostToken, saveHostSession, saveHostToken } from "../lib/session";
 import { RevealBars, AnimatedLeaderboard } from "../components/Reveal";
-
-const hostTokenKey = (gameId: string) => `triviando.hostToken.${gameId}`;
 
 const choiceColors = [
   "bg-red-500",
@@ -58,7 +57,7 @@ export default function Host() {
           setPin(d.pin);
           setQuizTitle(d.quizTitle);
           setPlayers(d.players);
-          localStorage.setItem(hostTokenKey(d.gameId), d.hostToken);
+          saveHostToken(d.gameId, d.hostToken);
 
           // Upgrade reconnection handshake to HostAttach so future reconnects
           // re-attach to this game instead of attempting to create a new one.
@@ -68,14 +67,11 @@ export default function Host() {
           });
 
           // Store active session metadata for resumption
-          localStorage.setItem(
-            "triviando.activeHostSession",
-            JSON.stringify({
-              gameId: d.gameId,
-              pin: d.pin,
-              quizTitle: d.quizTitle,
-            })
-          );
+          saveHostSession({
+            gameId: d.gameId,
+            pin: d.pin,
+            quizTitle: d.quizTitle,
+          });
 
           // Update URL to match gameId so refresh/reconnect works
           if (!routeGameId || routeGameId !== d.gameId) {
@@ -109,11 +105,11 @@ export default function Host() {
         case MsgType.GameFinished:
           setFinished(env.data as GameFinished);
           setPhase("finished");
-          localStorage.removeItem("triviando.activeHostSession");
+          clearHostSession();
           break;
         case MsgType.Error:
           setError((env.data as ErrorMsg).message);
-          localStorage.removeItem("triviando.activeHostSession");
+          clearHostSession();
           break;
       }
     });
@@ -121,7 +117,7 @@ export default function Host() {
     sock.connect();
 
     if (routeGameId) {
-      const token = localStorage.getItem(hostTokenKey(routeGameId));
+      const token = loadHostToken(routeGameId);
       if (!token) setError("Missing host token for this game.");
       else sock.setHandshake(MsgType.HostAttach, { gameId: routeGameId, hostToken: token });
     } else if (startQuizId) {
@@ -285,4 +281,3 @@ export default function Host() {
     </div>
   );
 }
-
