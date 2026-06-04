@@ -31,8 +31,12 @@ func New(st *store.Store, hub *live.Hub) http.Handler {
 
 	qh := &quizHandler{store: st}
 	hh := &historyHandler{store: st}
+	ah := &authHandler{store: st}
+	loginLimiter := newRateLimiter(10, time.Minute)
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/ping", ping)
+		r.Post("/auth/register", ah.register)
+		r.With(loginLimiter.middleware).Post("/auth/login", ah.login)
 		r.Get("/history", hh.list)
 		r.Route("/quizzes", func(r chi.Router) {
 			r.Get("/", qh.list)

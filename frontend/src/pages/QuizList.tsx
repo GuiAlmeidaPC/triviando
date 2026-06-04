@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, type FinishedGame, type Quiz } from "../lib/api";
 import { clearHostSession, loadHostSession } from "../lib/session";
+import { getUsername, signOut } from "../lib/owner";
 
 export default function QuizList() {
   const [quizzes, setQuizzes] = useState<Quiz[] | null>(null);
   const [history, setHistory] = useState<FinishedGame[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<{ gameId: string; pin: string; quizTitle: string } | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
   const nav = useNavigate();
 
   async function refresh() {
@@ -24,7 +26,14 @@ export default function QuizList() {
   useEffect(() => {
     refresh();
     setActiveSession(loadHostSession());
+    setUsername(getUsername());
   }, []);
+
+  function onSignOut() {
+    signOut();
+    setUsername(null);
+    refresh();
+  }
 
   async function onCreate() {
     try {
@@ -48,16 +57,30 @@ export default function QuizList() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
       <div className="max-w-3xl mx-auto space-y-6">
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between gap-4">
           <Link to="/" className="text-2xl font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 bg-clip-text text-transparent">
             Triviando
           </Link>
-          <button
-            onClick={onCreate}
-            className="bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-semibold py-2 px-4 rounded-lg transition"
-          >
-            + New quiz
-          </button>
+          <div className="flex items-center gap-3">
+            {username ? (
+              <span className="text-sm text-slate-400">
+                {username} ·{" "}
+                <button onClick={onSignOut} className="text-cyan-300 hover:text-cyan-200 underline transition cursor-pointer">
+                  Sign out
+                </button>
+              </span>
+            ) : (
+              <Link to="/login" className="text-sm text-cyan-300 hover:text-cyan-200 underline transition">
+                Sign in
+              </Link>
+            )}
+            <button
+              onClick={onCreate}
+              className="bg-fuchsia-500 hover:bg-fuchsia-400 text-white font-semibold py-2 px-4 rounded-lg transition"
+            >
+              + New quiz
+            </button>
+          </div>
         </header>
 
         {activeSession && (

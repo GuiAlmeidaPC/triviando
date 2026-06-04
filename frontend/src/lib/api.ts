@@ -60,7 +60,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return res.json();
 }
 
+export interface AuthResp {
+  username: string;
+  ownerToken: string;
+}
+
 export const api = {
+  register: (username: string, password: string) =>
+    request<AuthResp>("POST", "/api/auth/register", { username, password }),
+  login: (username: string, password: string) =>
+    request<AuthResp>("POST", "/api/auth/login", { username, password }),
   listQuizzes: () => request<Quiz[]>("GET", "/api/quizzes"),
   listHistory: () => request<FinishedGame[]>("GET", "/api/history"),
   createQuiz: (title: string) => request<Quiz>("POST", "/api/quizzes", { title }),

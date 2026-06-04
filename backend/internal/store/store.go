@@ -76,6 +76,16 @@ CREATE TABLE IF NOT EXISTS finished_game_rows (
     score     INTEGER NOT NULL,
     PRIMARY KEY (game_id, rank)
 );
+
+-- Host accounts bind a username/password to an owner_token so a host can sign
+-- in from another device and recover their quizzes. The owner_token remains the
+-- single identity key used everywhere else (quizzes, history).
+CREATE TABLE IF NOT EXISTS host_accounts (
+    username      TEXT PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    owner_token   TEXT NOT NULL,
+    created_at    INTEGER NOT NULL
+);
 `
 
 func (s *Store) migrate() error {

@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { clearHostSession, clearPlayerSession, loadHostSession, loadPlayerSession, type HostSession, type PlayerSession } from "../lib/session";
+import { getUsername } from "../lib/owner";
 
 export default function Landing() {
   const [activeSession, setActiveSession] = useState<HostSession | null>(null);
   const [playerSession, setPlayerSession] = useState<PlayerSession | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveSession(loadHostSession());
     setPlayerSession(loadPlayerSession());
+    setUsername(getUsername());
   }, []);
 
   return (
@@ -93,6 +96,19 @@ export default function Landing() {
             Host: my quizzes
           </Link>
         </div>
+
+        {username ? (
+          <p className="text-sm text-slate-500">
+            Signed in as <strong className="text-slate-300">{username}</strong>.
+          </p>
+        ) : (
+          <p className="text-sm text-slate-500">
+            <Link to="/login" className="text-cyan-300 hover:text-cyan-200 underline transition">
+              Sign in or create an account
+            </Link>{" "}
+            to access your quizzes from any device.
+          </p>
+        )}
       </div>
     </div>
   );
