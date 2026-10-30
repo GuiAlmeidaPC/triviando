@@ -4,9 +4,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -14,15 +18,77 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Run backend tests
         run: cd backend && go test ./...
 
-      - name: Build frontend
-        run: cd frontend && npm ci && npm run build
+      - name: Build production artifacts
+        run: make build-prod
+
+      - name: Package release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: tar -czf triviando-release.tar.gz backend/bin/triviando frontend/dist deploy/release.sh
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          name: production-release
+          path: triviando-release.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      DEPLOY_HOST: deploy@187.127.26.58
+      TRIVIANDO_URL: https://triviando.gapc10.tech
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-release
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          test -n "$DEPLOY_SSH_KEY" && test -n "$DEPLOY_KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          install -m 600 /dev/null ~/.ssh/id_ed25519
+          install -m 600 /dev/null ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Deploy tested release
+        run: |
+          # Expand release paths on the VPS.
+          # shellcheck disable=SC2016
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$DEPLOY_HOST" '
+            set -eu
+            release=$(mktemp -d /srv/triviando/.incoming.XXXXXX)
+            trap '\''rm -rf "$release"'\'' EXIT
+            tar -xz -C "$release"
+            bash "$release/deploy/release.sh" "$release"' < triviando-release.tar.gz
+
+      - name: Check the live site
+        run: |
+          curl -fsS --max-time 10 --retry 10 --retry-delay 3 --retry-all-errors "$TRIVIANDO_URL/healthz"
+          curl -fsS --max-time 10 --retry 3 --retry-delay 3 --retry-all-errors "$TRIVIANDO_URL/" -o /dev/null
+
+      - name: Remove SSH credentials
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519 ~/.ssh/known_hosts

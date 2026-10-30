@@ -176,7 +176,9 @@ Follows the project's standard VPS deploy template (`deploy-new-project.md`), **
 - **Process**: systemd *user* service `~/.config/systemd/user/triviando.service` running `/srv/triviando/backend/bin/triviando`; `loginctl enable-linger deploy` so it survives logout.
 - **TLS**: `certbot --nginx -d triviando.gapc10.tech`.
 - **DB**: SQLite file at `/srv/triviando/data/triviando.db`; nightly `sqlite3 .backup` cron, weekly rotation.
-- **Redeploy**: `git pull && make build && systemctl --user restart triviando`. CI/CD deferred post-MVP.
+- **CI/CD**: `.github/workflows/ci.yml` tests and builds every push and pull request. Successful pushes to `main` deploy the built Linux/amd64 backend and frontend over SSH, using `deploy/release.sh`, then check `/healthz` and the public frontend. Releases run one at a time and preserve `/srv/triviando/data/`. The backend restart ends active in-memory games.
+- **CI credentials**: `bash deploy/setup-ci.sh` authorizes a dedicated SSH key for the existing VPS deployment and sets the repository's `DEPLOY_SSH_KEY` and pinned `DEPLOY_KNOWN_HOSTS` secrets.
+- **Manual redeploy**: `make deploy` builds locally, uploads the binary and frontend, and restarts the systemd user service.
 
 ### nginx server block (sketch)
 
